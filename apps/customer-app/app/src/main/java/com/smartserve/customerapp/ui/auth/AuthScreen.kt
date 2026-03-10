@@ -3,8 +3,6 @@ package com.smartserve.customerapp.ui.auth
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -12,20 +10,22 @@ import androidx.navigation.NavController
 import com.smartserve.customerapp.navigation.Routes
 import com.smartserve.customerapp.ui.layouts.AuthLayout
 import com.smartserve.sharedui.SharedButton
+import com.smartserve.sharedui.SharedText
+import com.smartserve.sharedui.SharedTextVariant
 
 @Composable
 fun AuthScreen(
     navController: NavController,
 ) {
     AuthLayout {
-        Text(
+        SharedText(
             text = "Welcome to SmartServe",
-            style = MaterialTheme.typography.headlineSmall,
+            variant = SharedTextVariant.Title,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
+        SharedText(
             text = "Sign in to continue.",
-            style = MaterialTheme.typography.bodyMedium,
+            variant = SharedTextVariant.Body,
         )
         Spacer(modifier = Modifier.height(16.dp))
         SharedButton(
