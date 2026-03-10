@@ -8,11 +8,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import com.smartserve.providerapp.navigation.Routes
 import com.smartserve.providerapp.ui.layouts.AuthLayout
 import com.smartserve.sharedui.SharedButton
 
 @Composable
-fun AuthScreen() {
+fun AuthScreen(
+    navController: NavController,
+) {
     AuthLayout {
         Text(
             text = "Welcome to SmartServe",
@@ -26,7 +30,11 @@ fun AuthScreen() {
         Spacer(modifier = Modifier.height(16.dp))
         SharedButton(
             text = "Continue",
-            onClick = { },
+            onClick = {
+                navController.navigate(Routes.App) {
+                    popUpTo(Routes.Auth) { inclusive = true }
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
         )
     }
