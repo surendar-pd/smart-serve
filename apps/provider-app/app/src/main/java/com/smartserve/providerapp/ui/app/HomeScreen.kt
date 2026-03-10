@@ -7,8 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.smartserve.sharedui.SharedBottomSheet
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedText
@@ -18,6 +23,8 @@ import com.smartserve.sharedui.SharedTextVariant
 fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
+    var isSheetOpen by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -103,5 +110,44 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             variant = SharedButtonVariant.Destructive,
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedText(
+            text = "SharedBottomSheet",
+            variant = SharedTextVariant.Subtitle,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        SharedBottomSheet(
+            isOpen = isSheetOpen,
+            onOpenChange = { isSheetOpen = it },
+            sheetContent = {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    SharedText(
+                        text = "Draggable bottom sheet",
+                        variant = SharedTextVariant.Title,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SharedText(
+                        text = "Drag me down to dismiss or tap outside.",
+                        variant = SharedTextVariant.Body,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SharedButton(
+                        text = "Close",
+                        onClick = { isSheetOpen = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = SharedButtonVariant.Outline,
+                    )
+                }
+            },
+        ) { open ->
+            SharedButton(
+                text = "Open bottom sheet",
+                onClick = open,
+                modifier = Modifier.fillMaxWidth(),
+                variant = SharedButtonVariant.Default,
+            )
+        }
     }
 }
