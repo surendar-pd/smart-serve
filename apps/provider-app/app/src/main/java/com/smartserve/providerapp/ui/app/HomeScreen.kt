@@ -39,6 +39,22 @@ import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextFieldVariant
 import com.smartserve.sharedui.SharedAccordion
+import com.smartserve.sharedui.SharedCheckbox
+import com.smartserve.sharedui.SharedChip
+import com.smartserve.sharedui.SharedDropdown
+import com.smartserve.sharedui.SharedErrorState
+import com.smartserve.sharedui.SharedFAB
+import com.smartserve.sharedui.SharedIconButton
+import com.smartserve.sharedui.SharedListItem
+import com.smartserve.sharedui.SharedProgress
+import com.smartserve.sharedui.SharedRadio
+import com.smartserve.sharedui.SharedRating
+import com.smartserve.sharedui.SharedTabs
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
 
 @Composable
 fun HomeScreen(
@@ -50,6 +66,12 @@ fun HomeScreen(
     var inputValue by remember { mutableStateOf("") }
     var textAreaValue by remember { mutableStateOf("") }
     var switchChecked by remember { mutableStateOf(true) }
+    var chipSelected by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
+    var dropdownExpanded by remember { mutableStateOf(false) }
+    var selectedDropdownOption by remember { mutableStateOf<String?>(null) }
+    var checkboxChecked by remember { mutableStateOf(false) }
+    var selectedRadio by remember { mutableStateOf(0) }
 
     Column(
         modifier = modifier
@@ -147,6 +169,137 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             variant = SharedButtonVariant.Destructive,
         )
+        Spacer(modifier = Modifier.height(10.dp))
+        SharedButton(
+            text = "With icon",
+            onClick = { },
+            modifier = Modifier.fillMaxWidth(),
+            variant = SharedButtonVariant.Default,
+            leadingIcon = Icons.Default.Send,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SharedIconButton(onClick = { }, icon = Icons.Default.Add, contentDescription = "Add")
+            SharedIconButton(onClick = { }, icon = Icons.Default.Refresh, contentDescription = "Refresh")
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedChip", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedChip(
+            label = "Filter option",
+            selected = chipSelected,
+            onSelectedChange = { chipSelected = it },
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedListItem", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedCard(modifier = Modifier.fillMaxWidth()) {
+            SharedListItem(
+                title = "List item with support text",
+                supportingText = "Secondary line",
+                onClick = { },
+            )
+            SharedListItem(
+                title = "With trailing",
+                trailing = { SharedText(text = "Trailing", variant = SharedTextVariant.Caption) },
+                onClick = { },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "Checkbox & Radio", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedCheckbox(
+            checked = checkboxChecked,
+            onCheckedChange = { checkboxChecked = it },
+            label = "Accept terms",
+            description = "Optional description",
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SharedRadio(selected = selectedRadio == 0, onClick = { selectedRadio = 0 }, label = "Option A")
+        SharedRadio(selected = selectedRadio == 1, onClick = { selectedRadio = 1 }, label = "Option B")
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedTabs", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedTabs(
+            tabCount = 3,
+            selectedTabIndex = selectedTab,
+            onTabSelected = { selectedTab = it },
+            tabContent = { index -> SharedText(text = "Tab ${index + 1}", variant = SharedTextVariant.Label) },
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedDropdown", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedDropdown(
+            expanded = dropdownExpanded,
+            onExpandedChange = { dropdownExpanded = it },
+            options = listOf("Option A", "Option B", "Option C"),
+            selectedOption = selectedDropdownOption,
+            onOptionSelected = { selectedDropdownOption = it },
+            label = "Choose",
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedRating & SharedProgress", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedRating(rating = 4.5f)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedProgress(modifier = Modifier.fillMaxWidth(), progress = 0.6f)
+        Spacer(modifier = Modifier.height(8.dp))
+        SharedProgress(modifier = Modifier.fillMaxWidth())
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedErrorState", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedCard(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.height(180.dp).fillMaxWidth()) {
+                SharedErrorState(
+                    title = "Something went wrong",
+                    description = "Please try again.",
+                    icon = Icons.Default.Error,
+                    action = {
+                        SharedButton(
+                            text = "Retry",
+                            onClick = { },
+                            variant = SharedButtonVariant.Outline,
+                        )
+                    },
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SharedSeparator()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SharedText(text = "SharedFAB", variant = SharedTextVariant.Subtitle)
+        Spacer(modifier = Modifier.height(12.dp))
+        SharedFAB(onClick = { }, icon = Icons.Default.Add, contentDescription = "Add")
 
         Spacer(modifier = Modifier.height(20.dp))
         SharedSeparator()
