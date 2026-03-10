@@ -20,5 +20,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ProviderApp"
+includeBuild("../../libs/shared-ui")
 include(":app")
  

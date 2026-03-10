@@ -19,7 +19,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Customer App"
-includeBuild("../../libs/shared-ui")
-include(":app")
- 
+rootProject.name = "shared-ui"
