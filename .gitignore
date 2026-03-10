@@ -60,6 +60,7 @@ Thumbs.db
 
 # Secrets / env
 .env.*
+**/google-services.json
 
 # MCP / tooling
 .cursor/
