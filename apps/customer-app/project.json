@@ -1,0 +1,22 @@
+{
+    "name": "customer-app",
+    "root": "apps/customer-app",
+    "projectType": "application",
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cd apps/customer-app && ./gradlew assembleDebug"
+            },
+            "outputs": [
+                "apps/customer-app/app/build/outputs"
+            ]
+        },
+        "installDebug": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cd apps/customer-app && ./gradlew installDebug"
+            }
+        }
+    }
+}

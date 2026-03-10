@@ -1,0 +1,22 @@
+{
+    "name": "provider-app",
+    "root": "apps/provider-app",
+    "projectType": "application",
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cd apps/provider-app && ./gradlew assembleDebug"
+            },
+            "outputs": [
+                "apps/provider-app/app/build/outputs"
+            ]
+        },
+        "installDebug": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cd apps/provider-app && ./gradlew installDebug"
+            }
+        }
+    }
+}
