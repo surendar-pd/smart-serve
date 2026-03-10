@@ -1,6 +1,7 @@
 {
   "recommendations": [
-    
+    "fwcd.kotlin",
+    "vscjava.vscode-gradle",
     "nrwl.angular-console",
     "esbenp.prettier-vscode"
   ]

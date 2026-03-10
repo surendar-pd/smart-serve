@@ -42,6 +42,14 @@ yarn nx run provider-app:installDebug
 yarn nx run customer-app:installDebug
 ```
 
+**4. Hot reload (app stays running, no full restart)**
+
+For the smoothest experience—apply code changes without reinstalling or restarting the app—run the app from **Android Studio**:
+
+1. Open the app folder in Android Studio (e.g. `File → Open → apps/provider-app`).
+2. Run the app (green Play or Debug).
+3. With the app running, use **Apply Code Changes** (⌃F10 / Ctrl+F10) or **Apply Changes and Restart Activity** (⌃⌥F10) after editing code. Only changed code is built and pushed to the device; the app stays running (or only the activity restarts).
+
 **Alternative: run with Gradle directly**
 
 ```sh

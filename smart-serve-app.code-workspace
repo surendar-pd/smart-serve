@@ -1,0 +1,21 @@
+{
+  "folders": [
+    { "path": ".", "name": "smart-serve-app (root)" },
+    { "path": "apps/provider-app", "name": "provider-app" },
+    { "path": "apps/customer-app", "name": "customer-app" },
+    { "path": "libs/shared-ui", "name": "shared-ui" }
+  ],
+  "settings": {
+    "kotlin.languageServer.enabled": true,
+    "java.import.gradle.enabled": true
+  },
+  "extensions": {
+    "recommendations": [
+      "fwcd.kotlin",
+      "vscjava.vscode-gradle",
+      "vscjava.vscode-java-pack",
+      "nrwl.angular-console",
+      "esbenp.prettier-vscode"
+    ]
+  }
+}
