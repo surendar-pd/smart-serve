@@ -9,7 +9,7 @@
                 "command": "cd apps/provider-app && ./gradlew assembleDebug"
             },
             "outputs": [
-                "apps/provider-app/app/build/outputs"
+                "{projectRoot}/app/build/outputs"
             ]
         },
         "installDebug": {

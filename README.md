@@ -2,27 +2,72 @@
 
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+Nx workspace with two Android apps: **provider-app** and **customer-app** (Jetpack Compose, Kotlin).
 
-Run `npx nx graph` to visually explore what got created. Now, let's get you up to speed!
+## Running the apps
+
+**Prerequisites**
+
+- [Node.js](https://nodejs.org/) (LTS)
+- [Yarn](https://yarnpkg.com/) (v4; enable with `corepack enable` if needed)
+- [Android Studio](https://developer.android.com/studio) (or Android SDK + emulator / device with USB debugging)
+
+**1. Install dependencies**
+
+From the repository root:
+
+```sh
+yarn install
+```
+
+**2. Build an app**
+
+```sh
+# Provider app
+yarn nx build provider-app
+
+# Customer app
+yarn nx build customer-app
+```
+
+**3. Install and run on a device or emulator**
+
+Start an Android emulator or connect a device, then:
+
+```sh
+# Provider app
+yarn nx run provider-app:installDebug
+
+# Customer app
+yarn nx run customer-app:installDebug
+```
+
+**Alternative: run with Gradle directly**
+
+```sh
+# Provider app
+cd apps/provider-app && ./gradlew installDebug
+
+# Customer app
+cd apps/customer-app && ./gradlew installDebug
+```
 
 ## Finish your remote caching setup
 
 [Click here to finish setting up your workspace!](https://cloud.nx.app/connect/EQEanaB6kr)
-
 
 ## Run tasks
 
 To run tasks with Nx use:
 
 ```sh
-npx nx <target> <project-name>
+yarn nx <target> <project-name>
 ```
 
 For example:
 
 ```sh
-npx nx build myproject
+yarn nx build provider-app
 ```
 
 These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
@@ -35,20 +80,20 @@ While you could add new projects to your workspace manually, you might want to l
 
 To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
 ```sh
-npx nx add @nx/react
+yarn nx add @nx/react
 ```
 
 Use the plugin's generator to create new projects. For example, to create a new React app or library:
 
 ```sh
 # Generate an app
-npx nx g @nx/react:app demo
+yarn nx g @nx/react:app demo
 
 # Generate a library
-npx nx g @nx/react:lib some-lib
+yarn nx g @nx/react:lib some-lib
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+You can use `yarn nx list` to get a list of installed plugins. Then, run `yarn nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
 
 [Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 

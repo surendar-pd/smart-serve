@@ -8,6 +8,12 @@ out-tsc
 # dependencies
 node_modules
 
+# Yarn (Berry / v4)
+.yarn/cache
+.yarn/unplugged
+.yarn/install-state.gz
+.yarn/build-state.yml
+
 # IDEs and editors
 .idea
 .project
