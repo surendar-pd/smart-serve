@@ -1,6 +1,11 @@
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
+# Product Context
+
+- **SmartServe** is a local service marketplace Android app for the Ottawa region (customers book home, education, and student-life services; providers receive and fulfill requests).
+- For product scope, features, user roles, screens, and technical architecture, see **[docs/PRD.md](docs/PRD.md)**. Use the PRD as the source of truth when implementing or discussing features, UX flows, or backend behavior.
+
 # General Guidelines for working with Nx
 
 - For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
