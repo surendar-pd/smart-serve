@@ -11,6 +11,17 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.squareup:javapoet:1.13.0")
+    }
+}
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -19,7 +30,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Customer App"
+rootProject.name = "CustomerApp"
 includeBuild("../../libs/shared-ui")
 include(":app")
- 

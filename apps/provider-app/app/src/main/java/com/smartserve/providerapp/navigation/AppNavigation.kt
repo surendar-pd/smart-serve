@@ -1,4 +1,4 @@
-package com.smartserve.providerapp.navigation
+/*package com.smartserve.providerapp.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
@@ -22,5 +22,51 @@ fun AppNavigation() {
             AppScreen()
         }
     }
+}*/
+package com.smartserve.providerapp.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navigation
+import com.smartserve.providerapp.auth.presentation.navigation.AuthRoutes
+import com.smartserve.providerapp.auth.presentation.navigation.authNavGraph
+import com.smartserve.providerapp.ui.app.AppScreen
+
+@Composable
+fun AppNavigation() {
+  val navController = rememberNavController()
+
+  NavHost(
+    navController    = navController,
+    startDestination = Routes.Auth
+  ) {
+
+    // ── Auth graph ─────────────────────────────────
+    navigation(
+      route            = Routes.Auth,
+      startDestination = AuthRoutes.INTRO_PROVIDER
+    ) {
+      authNavGraph(
+        navController            = navController,
+        onNavigateToCustomerHome = {
+          navController.navigate(Routes.App) {
+            popUpTo(Routes.Auth) { inclusive = true }
+          }
+        },
+        onNavigateToProviderHome = {
+          navController.navigate(Routes.App) {
+            popUpTo(Routes.Auth) { inclusive = true }
+          }
+        }
+      )
+    }
+
+    // ── App graph ──────────────────────────────────
+    composable(Routes.App) {
+      AppScreen()
+    }
+  }
 }
 
