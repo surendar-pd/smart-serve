@@ -20,6 +20,8 @@ From the repository root:
 yarn install
 ```
 
+The workspace uses **Yarn 4** (see `packageManager` in `package.json`). There are **no `scripts` in `package.json`** for the Android apps—invoke Gradle through **Nx** with `yarn nx …` as below. Nx is configured in `nx.json`; app targets live in each app’s `project.json` (e.g. `build`, `installDebug`).
+
 **2. Build an app**
 
 ```sh
@@ -84,26 +86,9 @@ These targets are either [inferred automatically](https://nx.dev/concepts/inferr
 
 ## Add new projects
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+To add libraries or apps, use [Nx generators](https://nx.dev/features/generate-code) and the right plugin for your stack (this repo is Android/Kotlin). Run `yarn nx list` to see installed plugins, or use [Nx Console](https://nx.dev/getting-started/editor-setup) in the IDE.
 
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-yarn nx add @nx/react
-```
-
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
-
-```sh
-# Generate an app
-yarn nx g @nx/react:app demo
-
-# Generate a library
-yarn nx g @nx/react:lib some-lib
-```
-
-You can use `yarn nx list` to get a list of installed plugins. Then, run `yarn nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins)
 
 
 [Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
