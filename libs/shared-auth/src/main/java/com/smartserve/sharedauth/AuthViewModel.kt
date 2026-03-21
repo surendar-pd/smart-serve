@@ -12,6 +12,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private fun wrongAppRoleMessage(expectedAppRole: String): String =
+    when (expectedAppRole) {
+        UserRole.CUSTOMER.value ->
+            "This account isn’t a customer account. Sign in with the SmartServe Provider app instead."
+        UserRole.PROVIDER.value ->
+            "This account isn’t a provider account. Sign in with the SmartServe Customer app instead."
+        else -> "This account can’t be used in this app."
+    }
+
 data class AuthUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -36,7 +45,8 @@ sealed class AuthNavDestination {
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val repository: AuthRepository
+    private val repository: AuthRepository,
+    @ExpectedAppRole private val expectedAppRole: String,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -64,6 +74,13 @@ class AuthViewModel @Inject constructor(
             is AuthResult.Success -> {
                 val uid = result.user.uid
                 val role = repository.getUserRole(uid)
+                if (!AppRoleGate.isAllowed(expectedAppRole, role)) {
+                    repository.signOut()
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = wrongAppRoleMessage(expectedAppRole))
+                    }
+                    return@launch
+                }
                 routeAfterAuth(uid, role)
             }
             is AuthResult.Error -> _uiState.update { it.copy(isLoading = false, errorMessage = result.message) }
@@ -108,7 +125,18 @@ class AuthViewModel @Inject constructor(
     fun signInWithGoogle(idToken: String, role: String) = viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true) }
         when (val result = repository.signInWithGoogle(idToken, role)) {
-            is AuthResult.Success -> routeAfterAuth(result.user.uid, role)
+            is AuthResult.Success -> {
+                val uid = result.user.uid
+                val actualRole = repository.getUserRole(uid)
+                if (!AppRoleGate.isAllowed(expectedAppRole, actualRole)) {
+                    repository.signOut()
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = wrongAppRoleMessage(expectedAppRole))
+                    }
+                    return@launch
+                }
+                routeAfterAuth(uid, actualRole)
+            }
             is AuthResult.Error -> _uiState.update { it.copy(isLoading = false, errorMessage = result.message) }
             is AuthResult.Loading -> {}
         }
@@ -132,13 +160,15 @@ class AuthViewModel @Inject constructor(
             }
     }
 
-    private suspend fun routeAfterAuth(uid: String, role: String) {
-        val profileDone = repository.isProfileSetupComplete(uid, role)
+    private suspend fun routeAfterAuth(uid: String, resolvedRole: String) {
+        val roleForRouting =
+            if (resolvedRole == UserRole.BOTH.value) expectedAppRole else resolvedRole
+        val profileDone = repository.isProfileSetupComplete(uid, roleForRouting)
         val destination = if (!profileDone) {
-            if (role == "provider") AuthNavDestination.ProviderProfileSetup(uid)
+            if (roleForRouting == UserRole.PROVIDER.value) AuthNavDestination.ProviderProfileSetup(uid)
             else AuthNavDestination.CustomerProfileSetup(uid)
         } else {
-            if (role == "provider") AuthNavDestination.ProviderHome(uid)
+            if (roleForRouting == UserRole.PROVIDER.value) AuthNavDestination.ProviderHome(uid)
             else AuthNavDestination.CustomerHome(uid)
         }
         _uiState.update { it.copy(isLoading = false, navigateTo = destination) }
@@ -201,6 +231,7 @@ class CustomerProfileViewModel @Inject constructor(
     fun onLocationToggle(v: Boolean) = _state.update { it.copy(locationAwareness = v) }
     fun onNotifToggle(v: Boolean) = _state.update { it.copy(pushNotifications = v) }
     fun clearNavigation() = _state.update { it.copy(navigateToHome = false) }
+    fun clearError() = _state.update { it.copy(errorMessage = null) }
 
     fun saveAndStart(uid: String) = viewModelScope.launch {
         val s = _state.value
@@ -257,6 +288,7 @@ class ProviderProfileViewModel @Inject constructor(
     fun onAvailabilityStartChange(v: String) = _state.update { it.copy(availabilityStart = v) }
     fun onAvailabilityEndChange(v: String) = _state.update { it.copy(availabilityEnd = v) }
     fun clearNavigation() = _state.update { it.copy(navigateToHome = false) }
+    fun clearError() = _state.update { it.copy(errorMessage = null) }
 
     fun saveAndStart(uid: String, displayName: String, phone: String) = viewModelScope.launch {
         val s = _state.value

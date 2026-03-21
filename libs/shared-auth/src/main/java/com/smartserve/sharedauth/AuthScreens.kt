@@ -17,13 +17,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
@@ -41,6 +41,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +75,6 @@ import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedDividerWithCenterLabel
 import com.smartserve.sharedui.SharedInputIcon
-import com.smartserve.sharedui.SharedIconButton
 import com.smartserve.sharedui.SharedPaddedScrollColumn
 import com.smartserve.sharedui.SharedScaffold
 import com.smartserve.sharedui.SharedScreenHeader
@@ -81,6 +84,9 @@ import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
 import com.smartserve.sharedui.SharedTopAppBar
+
+/** Extra space below status bar so the snackbar clears [SharedTopAppBar]. */
+private val AuthSnackbarBelowTopBarInset = 64.dp
 
 @Composable
 fun LoginScreen(
@@ -116,7 +122,15 @@ fun LoginScreen(
         }
     }
 
-    AuthScaffoldColumn(topBar = { SharedTopAppBar(title = "Sign in", onBack = onBack) }) {
+    AuthScaffoldColumn(
+        topBar = { SharedTopAppBar(title = "Sign in", onBack = onBack) },
+        snackbarBelowTopBarInset = AuthSnackbarBelowTopBarInset,
+    ) { snackbarHostState ->
+        AuthErrorSnackbarLaunchedEffect(
+            errorMessage = state.errorMessage,
+            snackbarHostState = snackbarHostState,
+            onConsumed = viewModel::clearError,
+        )
         SharedScreenHeader(title = "Welcome back", subtitle = "Sign in to your SmartServe account")
 
         SharedTextField(
@@ -168,10 +182,6 @@ fun LoginScreen(
             variant = SharedButtonVariant.Outline,
             enabled = false,
         )
-
-        state.errorMessage?.let { msg ->
-            ErrorSnackbar(msg) { viewModel.clearError() }
-        }
     }
 }
 
@@ -191,7 +201,15 @@ fun SignUpCustomerScreen(
         }
     }
 
-    AuthScaffoldColumn(topBar = { SharedTopAppBar(title = "Create Account", onBack = onBack) }) {
+    AuthScaffoldColumn(
+        topBar = { SharedTopAppBar(title = "Create Account", onBack = onBack) },
+        snackbarBelowTopBarInset = AuthSnackbarBelowTopBarInset,
+    ) { snackbarHostState ->
+        AuthErrorSnackbarLaunchedEffect(
+            errorMessage = state.errorMessage,
+            snackbarHostState = snackbarHostState,
+            onConsumed = viewModel::clearError,
+        )
         SharedScreenHeader(
             title = "Join SmartServe",
             subtitle = "Create your customer account"
@@ -243,8 +261,6 @@ fun SignUpCustomerScreen(
             variant = SharedButtonVariant.Outline,
             enabled = false,
         )
-
-        state.errorMessage?.let { ErrorSnackbar(it) { viewModel.clearError() } }
     }
 }
 
@@ -264,7 +280,15 @@ fun SignUpProviderScreen(
         }
     }
 
-    AuthScaffoldColumn(topBar = { SharedTopAppBar(title = "Join as Provider", onBack = onBack) }) {
+    AuthScaffoldColumn(
+        topBar = { SharedTopAppBar(title = "Join as Provider", onBack = onBack) },
+        snackbarBelowTopBarInset = AuthSnackbarBelowTopBarInset,
+    ) { snackbarHostState ->
+        AuthErrorSnackbarLaunchedEffect(
+            errorMessage = state.errorMessage,
+            snackbarHostState = snackbarHostState,
+            onConsumed = viewModel::clearError,
+        )
         SharedScreenHeader(
             title = "Provider Sign Up",
             subtitle = "Create your provider account"
@@ -325,8 +349,6 @@ fun SignUpProviderScreen(
             variant = SharedButtonVariant.Outline,
             enabled = false,
         )
-
-        state.errorMessage?.let { ErrorSnackbar(it) { viewModel.clearError() } }
     }
 }
 
@@ -417,7 +439,15 @@ fun ForgotPasswordScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    AuthScaffoldColumn(topBar = { SharedTopAppBar(title = "Reset Password", onBack = onBack) }) {
+    AuthScaffoldColumn(
+        topBar = { SharedTopAppBar(title = "Reset Password", onBack = onBack) },
+        snackbarBelowTopBarInset = AuthSnackbarBelowTopBarInset,
+    ) { snackbarHostState ->
+        AuthErrorSnackbarLaunchedEffect(
+            errorMessage = state.errorMessage,
+            snackbarHostState = snackbarHostState,
+            onConsumed = viewModel::clearError,
+        )
         SharedScreenHeader(
             title = "Forgot Password?",
             subtitle = "Enter your email and we'll send you a reset link. The link expires after 15 minutes."
@@ -453,8 +483,6 @@ fun ForgotPasswordScreen(
                 )
             }
         }
-
-        state.errorMessage?.let { ErrorSnackbar(it) { viewModel.clearError() } }
     }
 }
 
@@ -480,7 +508,12 @@ fun CustomerProfileSetupScreen(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? -> viewModel.onPhotoSelected(uri) }
 
-    AuthScaffoldColumn {
+    AuthScaffoldColumn { snackbarHostState ->
+        AuthErrorSnackbarLaunchedEffect(
+            errorMessage = state.errorMessage,
+            snackbarHostState = snackbarHostState,
+            onConsumed = viewModel::clearError,
+        )
         SharedScreenHeader(
             title = "Set up your profile",
             subtitle = "Just a few details to personalise your experience"
@@ -561,8 +594,6 @@ fun CustomerProfileSetupScreen(
             isLoading = state.isLoading,
             onClick = { viewModel.saveAndStart(uid) }
         )
-
-        state.errorMessage?.let { ErrorSnackbar(it) {} }
     }
 }
 
@@ -592,7 +623,12 @@ fun ProviderProfileSetupScreen(
     val categories = listOf("home" to "Home Services", "education" to "Education", "studentLife" to "Student Life Services")
     val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
-    AuthScaffoldColumn {
+    AuthScaffoldColumn { snackbarHostState ->
+        AuthErrorSnackbarLaunchedEffect(
+            errorMessage = state.errorMessage,
+            snackbarHostState = snackbarHostState,
+            onConsumed = viewModel::clearError,
+        )
         SharedScreenHeader(
             title = "Provider Profile",
             subtitle = "Tell customers about your services"
@@ -755,19 +791,58 @@ fun ProviderProfileSetupScreen(
                 viewModel.saveAndStart(uid, displayName = "", phone = "")
             }
         )
-
-        state.errorMessage?.let { ErrorSnackbar(it) {} }
     }
 }
 
+@Composable
+private fun AuthErrorSnackbarLaunchedEffect(
+    errorMessage: String?,
+    snackbarHostState: SnackbarHostState,
+    onConsumed: () -> Unit,
+) {
+    LaunchedEffect(errorMessage) {
+        val msg = errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message = msg)
+        onConsumed()
+    }
+}
 
 @Composable
 private fun AuthScaffoldColumn(
     topBar: @Composable () -> Unit = {},
-    content: @Composable ColumnScope.() -> Unit
+    /** When a [topBar] is shown, pass ~64.dp so the snackbar sits below the app bar. */
+    snackbarBelowTopBarInset: Dp = 0.dp,
+    content: @Composable ColumnScope.(SnackbarHostState) -> Unit
 ) {
-    SharedScaffold(topBar = topBar) { padding ->
-        SharedPaddedScrollColumn(paddingValues = padding, content = content)
+    val snackbarHostState = remember { SnackbarHostState() }
+    Box(Modifier.fillMaxSize()) {
+        SharedScaffold(
+            topBar = topBar,
+            snackbarHost = {},
+        ) { padding ->
+            SharedPaddedScrollColumn(paddingValues = padding) {
+                content(snackbarHostState)
+            }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .statusBarsPadding()
+                .padding(top = 8.dp)
+                .padding(top = snackbarBelowTopBarInset),
+            snackbar = { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    actionContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    dismissActionContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            },
+        )
     }
 }
 
@@ -811,34 +886,6 @@ private fun PreferenceToggleRow(label: String, checked: Boolean, onChange: (Bool
         checked = checked,
         onCheckedChange = onChange,
     )
-}
-
-@Composable
-private fun ErrorSnackbar(message: String, onDismiss: () -> Unit) {
-    SharedCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        contentPadding = PaddingValues(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SharedText(
-                text = message,
-                variant = SharedTextVariant.Body,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f),
-            )
-            SharedIconButton(
-                onClick = onDismiss,
-                icon = Icons.Filled.Close,
-                contentDescription = "Dismiss",
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            )
-        }
-    }
 }
 
 @Composable

@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
 import com.smartserve.sharedauth.AuthRoutes
 import com.smartserve.sharedauth.SessionBootstrapRoute
+import com.smartserve.sharedauth.UserRole
 import com.smartserve.sharedauth.authNavGraph
 import com.smartserve.customerapp.ui.app.AppScreen
 
@@ -24,6 +25,7 @@ fun AppNavigation() {
         bootstrapRoute = Routes.Bootstrap,
         appRoute = Routes.App,
         authRoute = Routes.Auth,
+        expectedAppRole = UserRole.CUSTOMER.value,
       )
     }
 
