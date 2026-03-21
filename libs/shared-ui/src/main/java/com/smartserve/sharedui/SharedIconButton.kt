@@ -6,6 +6,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -18,12 +19,14 @@ fun SharedIconButton(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
+    /** When null, uses [MaterialTheme.colorScheme.onSurfaceVariant]. */
+    contentColor: Color? = null,
 ) {
     IconButton(
         onClick = onClick,
         modifier = modifier,
         colors = IconButtonDefaults.iconButtonColors(
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            contentColor = contentColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
         ),
     ) {
         Icon(

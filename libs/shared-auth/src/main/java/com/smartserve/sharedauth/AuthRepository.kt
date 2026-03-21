@@ -1,5 +1,4 @@
-//package com.smartserve.auth.data
-package com.smartserve.customerapp.auth.data
+package com.smartserve.sharedauth
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -11,12 +10,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
-
-sealed class AuthResult {
-    data class Success(val user: FirebaseUser) : AuthResult()
-    data class Error(val message: String) : AuthResult()
-    object Loading : AuthResult()
-}
 
 @Singleton
 class AuthRepository @Inject constructor(
@@ -32,9 +25,6 @@ class AuthRepository @Inject constructor(
         awaitClose { auth.removeAuthStateListener(listener) }
     }
 
-    // ──────────────────────────────────────────────
-    // Sign Up with email/password
-    // ──────────────────────────────────────────────
     suspend fun signUpWithEmail(
         email: String,
         password: String,
@@ -46,10 +36,8 @@ class AuthRepository @Inject constructor(
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return AuthResult.Error("User creation failed")
 
-            // Send email verification
             firebaseUser.sendEmailVerification().await()
 
-            // Write user document to Firestore: users/{uid}
             val user = User(
                 uid = firebaseUser.uid,
                 email = email,
@@ -69,9 +57,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Sign In with email/password
-    // ──────────────────────────────────────────────
     suspend fun signInWithEmail(email: String, password: String): AuthResult {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
@@ -82,16 +67,12 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Sign In with Google OAuth token
-    // ──────────────────────────────────────────────
     suspend fun signInWithGoogle(idToken: String, role: String): AuthResult {
         return try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = auth.signInWithCredential(credential).await()
             val firebaseUser = result.user ?: return AuthResult.Error("Google sign-in failed")
 
-            // Create user doc if new user
             if (result.additionalUserInfo?.isNewUser == true) {
                 val user = User(
                     uid = firebaseUser.uid,
@@ -112,9 +93,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Forgot Password
-    // ──────────────────────────────────────────────
     suspend fun sendPasswordReset(email: String): Result<Unit> {
         return try {
             auth.sendPasswordResetEmail(email).await()
@@ -124,9 +102,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Check if profile setup has been completed
-    // ──────────────────────────────────────────────
     suspend fun isProfileSetupComplete(uid: String, role: String): Boolean {
         return try {
             if (role == "customer") {
@@ -141,9 +116,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Fetch stored user role from Firestore
-    // ──────────────────────────────────────────────
     suspend fun getUserRole(uid: String): String {
         return try {
             val doc = firestore.collection("users").document(uid).get().await()
@@ -153,10 +125,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Save Customer Profile Setup
-    // Writes to: customerPreferences/{uid}
-    // ──────────────────────────────────────────────
     suspend fun saveCustomerProfile(
         uid: String,
         phone: String?,
@@ -175,7 +143,6 @@ class AuthRepository @Inject constructor(
             )
             firestore.collection("customerPreferences").document(uid).set(prefs).await()
 
-            // Update photoUrl + phone in users/{uid} if provided
             val updates = mutableMapOf<String, Any>()
             phone?.let { if (it.isNotBlank()) updates["phone"] = it }
             photoUrl?.let { if (it.isNotBlank()) updates["photoUrl"] = it }
@@ -188,10 +155,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Save Provider Profile Setup
-    // Writes to: providerProfiles/{uid}
-    // ──────────────────────────────────────────────
     suspend fun saveProviderProfile(
         uid: String,
         displayName: String,

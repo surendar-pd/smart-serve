@@ -1,9 +1,7 @@
-//package com.smartserve.auth.di
-package com.smartserve.customerapp.auth.di
+package com.smartserve.sharedauth
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.smartserve.customerapp.auth.data.AuthRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -32,4 +32,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "CustomerApp"
 includeBuild("../../libs/shared-ui")
+includeBuild("../../libs/shared-auth")
 include(":app")

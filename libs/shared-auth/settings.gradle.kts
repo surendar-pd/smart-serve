@@ -16,17 +16,6 @@ pluginManagement {
     }
 }
 
-// THIS IS THE KEY FIX - force javapoet on the buildscript classpath
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath("com.squareup:javapoet:1.13.0")
-    }
-}
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -35,7 +24,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ProviderApp"
-includeBuild("../../libs/shared-ui")
-includeBuild("../../libs/shared-auth")
-include(":app")
+rootProject.name = "shared-auth"
+includeBuild("../shared-ui")

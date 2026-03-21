@@ -16,7 +16,9 @@ import com.smartserve.providerapp.ui.layouts.AppLayout
 import com.smartserve.providerapp.ui.layouts.AppTab
 
 @Composable
-fun AppScreen() {
+fun AppScreen(
+    onLogout: () -> Unit,
+) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     val tabs = listOf(
@@ -33,7 +35,10 @@ fun AppScreen() {
             when (selectedTabIndex) {
                 0 -> HomeScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
                 1 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-                2 -> ProfileScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
+                2 -> ProfileScreen(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    onLogout = onLogout,
+                )
             }
         },
     )

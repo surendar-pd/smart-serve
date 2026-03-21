@@ -44,6 +44,7 @@ android {
 
 dependencies {
     implementation("com.smartserve:shared-ui:1.0")
+    implementation("com.smartserve:shared-auth:1.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

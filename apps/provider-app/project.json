@@ -6,12 +6,19 @@
         "build": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "cd apps\\provider-app && .\\gradlew assembleDebug"            },
+                "cwd": "{projectRoot}",
+                "command": "./gradlew assembleDebug"
+            },
             "outputs": [
                 "{projectRoot}/app/build/outputs"
             ]
         },
         "installDebug": {
-  "command": "cd apps\\provider-app && .\\gradlew installDebug"
-}    }
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "{projectRoot}",
+                "command": "./gradlew installDebug"
+            }
+        }
+    }
 }

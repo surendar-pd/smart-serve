@@ -1,27 +1,27 @@
-//package com.smartserve.auth.data
-package com.smartserve.providerapp.auth.data
+package com.smartserve.sharedauth
 
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.DocumentId
 
-// ──────────────────────────────────────────────
-// Firestore: users/{uid}
-// ──────────────────────────────────────────────
+sealed class AuthResult {
+    data class Success(val user: FirebaseUser) : AuthResult()
+    data class Error(val message: String) : AuthResult()
+    data object Loading : AuthResult()
+}
+
 data class User(
     @DocumentId val uid: String = "",
     val email: String = "",
     val fullName: String = "",
-    val phone: String? = null,          // optional for customers
+    val phone: String? = null,
     val photoUrl: String = "",
-    val role: String = "customer",      // "customer" | "provider" | "both"
+    val role: String = "customer",
     val activeRole: String = "customer",
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now()
 )
 
-// ──────────────────────────────────────────────
-// Firestore: customerPreferences/{uid}
-// ──────────────────────────────────────────────
 data class CustomerPreferences(
     @DocumentId val uid: String = "",
     val homeAddress: String = "",
@@ -34,9 +34,6 @@ data class CustomerPreferences(
     val pushNotifications: Boolean = true
 )
 
-// ──────────────────────────────────────────────
-// Firestore: providerProfiles/{uid}
-// ──────────────────────────────────────────────
 data class ProviderProfile(
     @DocumentId val uid: String = "",
     val displayName: String = "",
@@ -48,8 +45,7 @@ data class ProviderProfile(
     val totalReviews: Int = 0,
     val totalEarnings: Double = 0.0,
     val createdAt: Timestamp = Timestamp.now(),
-    // extended profile setup fields stored here
-    val serviceCategory: String = "",   // "home" | "education" | "studentLife"
+    val serviceCategory: String = "",
     val serviceDescription: String = "",
     val hourlyRate: Double = 0.0,
     val serviceCenter: com.google.firebase.firestore.GeoPoint? = null,

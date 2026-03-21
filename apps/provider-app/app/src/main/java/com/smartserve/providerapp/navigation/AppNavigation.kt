@@ -1,28 +1,3 @@
-/*package com.smartserve.providerapp.navigation
-
-import androidx.compose.runtime.Composable
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import com.smartserve.providerapp.ui.app.AppScreen
-import com.smartserve.providerapp.ui.auth.AuthScreen
-
-@Composable
-fun AppNavigation() {
-    val navController = rememberNavController()
-
-    NavHost(
-        navController = navController,
-        startDestination = Routes.Auth,
-    ) {
-        composable(Routes.Auth) {
-            AuthScreen(navController = navController)
-        }
-        composable(Routes.App) {
-            AppScreen()
-        }
-    }
-}*/
 package com.smartserve.providerapp.navigation
 
 import androidx.compose.runtime.Composable
@@ -30,8 +5,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
-import com.smartserve.providerapp.auth.presentation.navigation.AuthRoutes
-import com.smartserve.providerapp.auth.presentation.navigation.authNavGraph
+import com.smartserve.sharedauth.AuthRoutes
+import com.smartserve.sharedauth.SessionBootstrapRoute
+import com.smartserve.sharedauth.authNavGraph
 import com.smartserve.providerapp.ui.app.AppScreen
 
 @Composable
@@ -40,8 +16,16 @@ fun AppNavigation() {
 
   NavHost(
     navController    = navController,
-    startDestination = Routes.Auth
+    startDestination = Routes.Bootstrap
   ) {
+    composable(Routes.Bootstrap) {
+      SessionBootstrapRoute(
+        navController = navController,
+        bootstrapRoute = Routes.Bootstrap,
+        appRoute = Routes.App,
+        authRoute = Routes.Auth,
+      )
+    }
 
     // ── Auth graph ─────────────────────────────────
     navigation(
@@ -49,7 +33,7 @@ fun AppNavigation() {
       startDestination = AuthRoutes.INTRO_PROVIDER
     ) {
       authNavGraph(
-        navController            = navController,
+        navController = navController,
         onNavigateToCustomerHome = {
           navController.navigate(Routes.App) {
             popUpTo(Routes.Auth) { inclusive = true }
@@ -59,13 +43,22 @@ fun AppNavigation() {
           navController.navigate(Routes.App) {
             popUpTo(Routes.Auth) { inclusive = true }
           }
-        }
+        },
+        onNavigateToSignUpFromLogin = {
+          navController.navigate(AuthRoutes.SIGNUP_PROVIDER)
+        },
       )
     }
 
     // ── App graph ──────────────────────────────────
     composable(Routes.App) {
-      AppScreen()
+      AppScreen(
+        onLogout = {
+          navController.navigate(Routes.Auth) {
+            popUpTo(Routes.App) { inclusive = true }
+          }
+        },
+      )
     }
   }
 }
