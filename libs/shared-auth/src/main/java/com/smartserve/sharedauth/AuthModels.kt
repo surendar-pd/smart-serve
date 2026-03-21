@@ -10,20 +10,13 @@ sealed class AuthResult {
     data object Loading : AuthResult()
 }
 
-data class User(
+/**
+ * Extended customer data for `customer_profiles/{uid}`.
+ * Use [FirebaseUser] for email, name, photo; optional [phone] when not using Phone Auth.
+ */
+data class CustomerProfile(
     @DocumentId val uid: String = "",
-    val email: String = "",
-    val fullName: String = "",
     val phone: String? = null,
-    val photoUrl: String = "",
-    val role: String = "customer",
-    val activeRole: String = "customer",
-    val createdAt: Timestamp = Timestamp.now(),
-    val updatedAt: Timestamp = Timestamp.now()
-)
-
-data class CustomerPreferences(
-    @DocumentId val uid: String = "",
     val homeAddress: String = "",
     val homeLocation: com.google.firebase.firestore.GeoPoint? = null,
     val preferredTimeSlot: String = "",
@@ -34,10 +27,14 @@ data class CustomerPreferences(
     val pushNotifications: Boolean = true
 )
 
-data class ProviderProfile(
+/**
+ * Provider marketplace details at `provider_profiles/{uid}`.
+ * Listing name, phone (until Phone Auth), services, availability, ratings.
+ * Use [FirebaseUser] for email and profile photo when linked to Auth.
+ */
+data class ProviderServiceProfile(
     @DocumentId val uid: String = "",
     val displayName: String = "",
-    val photoUrl: String = "",
     val phone: String = "",
     val isVerified: Boolean = false,
     val isOnline: Boolean = false,
@@ -59,4 +56,11 @@ enum class UserRole(val value: String) {
     CUSTOMER("customer"),
     PROVIDER("provider"),
     BOTH("both")
+}
+
+/** Firestore collection ids for auth-related data (snake_case). */
+object AuthCollections {
+    const val USERS = "users"
+    const val CUSTOMER_PROFILES = "customer_profiles"
+    const val PROVIDER_PROFILES = "provider_profiles"
 }

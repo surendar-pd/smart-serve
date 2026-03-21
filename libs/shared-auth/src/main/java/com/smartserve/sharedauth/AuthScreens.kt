@@ -1,6 +1,7 @@
 package com.smartserve.sharedauth
 
 import android.net.Uri
+import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,14 +35,8 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -72,7 +69,9 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
+import com.smartserve.sharedui.SharedChip
 import com.smartserve.sharedui.SharedCard
+import com.smartserve.sharedui.SharedDropdown
 import com.smartserve.sharedui.SharedDividerWithCenterLabel
 import com.smartserve.sharedui.SharedInputIcon
 import com.smartserve.sharedui.SharedPaddedScrollColumn
@@ -497,10 +496,9 @@ fun CustomerProfileSetupScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(state.navigateToHome) {
-        if (state.navigateToHome) {
+    LaunchedEffect(Unit) {
+        viewModel.onboardingCompleted.collect {
             onStart()
-            viewModel.clearNavigation()
         }
     }
 
@@ -590,9 +588,9 @@ fun CustomerProfileSetupScreen(
         Spacer(Modifier.height(16.dp))
 
         AuthPrimaryButton(
-            label = "Start",
+            label = "Complete setup",
             isLoading = state.isLoading,
-            onClick = { viewModel.saveAndStart(uid) }
+            onClick = { viewModel.completeOnboarding(uid) }
         )
     }
 }
@@ -600,7 +598,7 @@ fun CustomerProfileSetupScreen(
 // ═══════════════════════════════════════════════════════════════
 // 5. Provider Profile Setup
 // ═══════════════════════════════════════════════════════════════
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProviderProfileSetupScreen(
     uid: String,
@@ -609,10 +607,9 @@ fun ProviderProfileSetupScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(state.navigateToHome) {
-        if (state.navigateToHome) {
+    LaunchedEffect(Unit) {
+        viewModel.onboardingCompleted.collect {
             onStart()
-            viewModel.clearNavigation()
         }
     }
 
@@ -621,7 +618,10 @@ fun ProviderProfileSetupScreen(
     ) { uri: Uri? -> viewModel.onPhotoSelected(uri) }
 
     val categories = listOf("home" to "Home Services", "education" to "Education", "studentLife" to "Student Life Services")
+    val categoryLabels = categories.map { it.second }
     val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+    var categoryExpanded by remember { mutableStateOf(false) }
 
     AuthScaffoldColumn { snackbarHostState ->
         AuthErrorSnackbarLaunchedEffect(
@@ -634,31 +634,40 @@ fun ProviderProfileSetupScreen(
             subtitle = "Tell customers about your services"
         )
 
-        Box(
+        SharedCard(
             modifier = Modifier
                 .size(96.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                .clickable { photoPicker.launch("image/*") }
                 .align(Alignment.CenterHorizontally),
-            contentAlignment = Alignment.Center
+            onClick = { photoPicker.launch("image/*") },
+            contentPadding = PaddingValues(0.dp),
         ) {
-            if (state.photoUri != null) {
-                AsyncImage(
-                    model = state.photoUri,
-                    contentDescription = "Profile photo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.AddAPhoto, null, tint = MaterialTheme.colorScheme.primary)
-                    SharedText(
-                        text = "Add Photo",
-                        variant = SharedTextVariant.Caption,
-                        color = MaterialTheme.colorScheme.primary,
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state.photoUri != null) {
+                    AsyncImage(
+                        model = state.photoUri,
+                        contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SharedText(
+                            text = "Add",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        SharedText(
+                            text = "Photo",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
@@ -671,36 +680,16 @@ fun ProviderProfileSetupScreen(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        var categoryExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(
+        SharedDropdown(
             expanded = categoryExpanded,
-            onExpandedChange = { categoryExpanded = !categoryExpanded }
-        ) {
-            OutlinedTextField(
-                value = categories.find { it.first == state.serviceCategory }?.second ?: "",
-                onValueChange = {},
-                readOnly = true,
-                label = { SharedText("Select category", variant = SharedTextVariant.Label) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor()
-            )
-            ExposedDropdownMenu(
-                expanded = categoryExpanded,
-                onDismissRequest = { categoryExpanded = false }
-            ) {
-                categories.forEach { (value, label) ->
-                    DropdownMenuItem(
-                        text = { SharedText(text = label, variant = SharedTextVariant.Body) },
-                        onClick = {
-                            viewModel.onCategoryChange(value)
-                            categoryExpanded = false
-                        }
-                    )
-                }
-            }
-        }
+            onExpandedChange = { categoryExpanded = it },
+            options = categoryLabels,
+            selectedOption = categories.find { it.first == state.serviceCategory }?.second,
+            onOptionSelected = { label ->
+                categories.find { it.second == label }?.first?.let(viewModel::onCategoryChange)
+            },
+            label = "Select category",
+        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -747,22 +736,31 @@ fun ProviderProfileSetupScreen(
         Spacer(Modifier.height(12.dp))
 
         SharedText(text = "Availability *", variant = SharedTextVariant.Label)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             daysOfWeek.forEach { day ->
                 val selected = day in state.availabilityDays
-                FilterChip(
+                SharedChip(
+                    label = day,
                     selected = selected,
-                    onClick = {
-                        val updated = if (selected) state.availabilityDays - day
-                        else state.availabilityDays + day
+                    onSelectedChange = { newSelected ->
+                        val updated = when {
+                            newSelected && day !in state.availabilityDays ->
+                                state.availabilityDays + day
+                            !newSelected ->
+                                state.availabilityDays - day
+                            else -> state.availabilityDays
+                        }
                         viewModel.onAvailabilityDaysChange(updated)
                     },
-                    label = { SharedText(text = day, variant = SharedTextVariant.Label) }
                 )
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -785,10 +783,15 @@ fun ProviderProfileSetupScreen(
         Spacer(Modifier.height(20.dp))
 
         AuthPrimaryButton(
-            label = "Start",
+            label = "Complete setup",
             isLoading = state.isLoading,
             onClick = {
-                viewModel.saveAndStart(uid, displayName = "", phone = "")
+                val authUser = FirebaseAuth.getInstance().currentUser
+                viewModel.completeOnboarding(
+                    uid = uid,
+                    displayName = authUser?.displayName.orEmpty(),
+                    phone = authUser?.phoneNumber.orEmpty()
+                )
             }
         )
     }

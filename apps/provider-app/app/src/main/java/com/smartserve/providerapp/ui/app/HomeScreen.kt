@@ -55,11 +55,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
+    val greetingName = greetingDisplayName()
+
     var isSheetOpen by remember { mutableStateOf(false) }
     var isDialogOpen by remember { mutableStateOf(false) }
 
@@ -80,8 +83,14 @@ fun HomeScreen(
             .padding(24.dp),
     ) {
         SharedText(
-            text = "Provider Home — Shared UI Gallery",
+            text = "Hello $greetingName",
             variant = SharedTextVariant.Title,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SharedText(
+            text = "Provider Home — Shared UI Gallery",
+            variant = SharedTextVariant.Subtitle,
         )
         Spacer(modifier = Modifier.height(8.dp))
         SharedText(
@@ -527,4 +536,11 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
+
+private fun greetingDisplayName(): String {
+    val user = FirebaseAuth.getInstance().currentUser ?: return "User"
+    return user.displayName?.takeIf { it.isNotBlank() }
+        ?: user.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
+        ?: "User"
 }

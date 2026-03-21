@@ -5,8 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -214,7 +218,6 @@ data class CustomerProfileUiState(
     val homeAddress: String = "",
     val locationAwareness: Boolean = true,
     val pushNotifications: Boolean = true,
-    val navigateToHome: Boolean = false
 )
 
 @HiltViewModel
@@ -225,15 +228,25 @@ class CustomerProfileViewModel @Inject constructor(
     private val _state = MutableStateFlow(CustomerProfileUiState())
     val state: StateFlow<CustomerProfileUiState> = _state.asStateFlow()
 
+    /** Emits once after Firestore + Auth profile save succeeds (navigate to main app). */
+    private val _onboardingCompleted = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val onboardingCompleted: SharedFlow<Unit> = _onboardingCompleted.asSharedFlow()
+
     fun onPhotoSelected(uri: Uri?) = _state.update { it.copy(photoUri = uri) }
     fun onPhoneChange(v: String) = _state.update { it.copy(phone = v) }
     fun onHomeAddressChange(v: String) = _state.update { it.copy(homeAddress = v) }
     fun onLocationToggle(v: Boolean) = _state.update { it.copy(locationAwareness = v) }
     fun onNotifToggle(v: Boolean) = _state.update { it.copy(pushNotifications = v) }
-    fun clearNavigation() = _state.update { it.copy(navigateToHome = false) }
     fun clearError() = _state.update { it.copy(errorMessage = null) }
 
-    fun saveAndStart(uid: String) = viewModelScope.launch {
+    /**
+     * Persists customer profile to **`customer_profiles`** (and updates Firebase Auth photo when provided).
+     * On success, emits [onboardingCompleted] so the UI can navigate.
+     */
+    fun completeOnboarding(uid: String) = viewModelScope.launch {
         val s = _state.value
         if (s.homeAddress.isBlank()) {
             _state.update { it.copy(errorMessage = "Please enter your home address") }
@@ -248,7 +261,8 @@ class CustomerProfileViewModel @Inject constructor(
             pushNotifications = s.pushNotifications,
             photoUrl = s.photoUri?.toString()
         ).onSuccess {
-            _state.update { it.copy(isLoading = false, navigateToHome = true) }
+            _state.update { it.copy(isLoading = false) }
+            _onboardingCompleted.emit(Unit)
         }.onFailure { e ->
             _state.update { it.copy(isLoading = false, errorMessage = e.localizedMessage) }
         }
@@ -267,7 +281,6 @@ data class ProviderProfileUiState(
     val availabilityDays: List<String> = emptyList(),
     val availabilityStart: String = "09:00",
     val availabilityEnd: String = "18:00",
-    val navigateToHome: Boolean = false
 )
 
 @HiltViewModel
@@ -278,6 +291,12 @@ class ProviderProfileViewModel @Inject constructor(
     private val _state = MutableStateFlow(ProviderProfileUiState())
     val state: StateFlow<ProviderProfileUiState> = _state.asStateFlow()
 
+    private val _onboardingCompleted = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val onboardingCompleted: SharedFlow<Unit> = _onboardingCompleted.asSharedFlow()
+
     fun onPhotoSelected(uri: Uri?) = _state.update { it.copy(photoUri = uri) }
     fun onCategoryChange(v: String) = _state.update { it.copy(serviceCategory = v) }
     fun onDescriptionChange(v: String) = _state.update { it.copy(serviceDescription = v) }
@@ -287,10 +306,13 @@ class ProviderProfileViewModel @Inject constructor(
     fun onAvailabilityDaysChange(days: List<String>) = _state.update { it.copy(availabilityDays = days) }
     fun onAvailabilityStartChange(v: String) = _state.update { it.copy(availabilityStart = v) }
     fun onAvailabilityEndChange(v: String) = _state.update { it.copy(availabilityEnd = v) }
-    fun clearNavigation() = _state.update { it.copy(navigateToHome = false) }
     fun clearError() = _state.update { it.copy(errorMessage = null) }
 
-    fun saveAndStart(uid: String, displayName: String, phone: String) = viewModelScope.launch {
+    /**
+     * Persists provider listing to **`provider_profiles`** (and updates Firebase Auth display name + photo).
+     * On success, emits [onboardingCompleted] so the UI can navigate.
+     */
+    fun completeOnboarding(uid: String, displayName: String, phone: String) = viewModelScope.launch {
         val s = _state.value
         when {
             s.serviceCategory.isBlank() -> {
@@ -325,7 +347,8 @@ class ProviderProfileViewModel @Inject constructor(
             availabilityStart = s.availabilityStart,
             availabilityEnd = s.availabilityEnd
         ).onSuccess {
-            _state.update { it.copy(isLoading = false, navigateToHome = true) }
+            _state.update { it.copy(isLoading = false) }
+            _onboardingCompleted.emit(Unit)
         }.onFailure { e ->
             _state.update { it.copy(isLoading = false, errorMessage = e.localizedMessage) }
         }

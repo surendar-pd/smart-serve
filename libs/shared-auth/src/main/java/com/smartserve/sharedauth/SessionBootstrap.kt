@@ -12,7 +12,7 @@ import dagger.hilt.android.EntryPointAccessors
 
 /**
  * Cold-start gate: navigates to [appRoute] only if Firebase has a session **and**
- * the user’s Firestore `activeRole` matches this APK’s [expectedAppRole] ([AppRoleGate]).
+ * the user’s Firestore `users.role` matches this APK’s [expectedAppRole] ([AppRoleGate]).
  * Otherwise signs out (when session exists but wrong app) and sends the user to [authRoute].
  */
 @Composable

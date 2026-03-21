@@ -1,9 +1,13 @@
 package com.smartserve.sharedauth
 
+import android.net.Uri
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -38,20 +42,18 @@ class AuthRepository @Inject constructor(
 
             firebaseUser.sendEmailVerification().await()
 
-            val user = User(
-                uid = firebaseUser.uid,
-                email = email,
-                fullName = fullName,
-                phone = phone,
-                role = role,
-                activeRole = if (role == UserRole.PROVIDER.value) "provider" else "customer"
-            )
-            firestore.collection("users")
-                .document(firebaseUser.uid)
-                .set(user)
-                .await()
+            val resolvedRole =
+                if (role == UserRole.PROVIDER.value) UserRole.PROVIDER.value else UserRole.CUSTOMER.value
+            syncDisplayNameToAuth(firebaseUser, fullName)
+            commitFirestoreUser(firebaseUser.uid, resolvedRole)
+            if (resolvedRole == UserRole.PROVIDER.value && !phone.isNullOrBlank()) {
+                firestore.collection(AuthCollections.PROVIDER_PROFILES).document(firebaseUser.uid)
+                    .set(mapOf("phone" to phone), SetOptions.merge())
+                    .await()
+            }
 
-            AuthResult.Success(firebaseUser)
+            firebaseUser.reload().await()
+            AuthResult.Success(auth.currentUser ?: firebaseUser)
         } catch (e: Exception) {
             AuthResult.Error(e.localizedMessage ?: "Sign up failed")
         }
@@ -74,18 +76,9 @@ class AuthRepository @Inject constructor(
             val firebaseUser = result.user ?: return AuthResult.Error("Google sign-in failed")
 
             if (result.additionalUserInfo?.isNewUser == true) {
-                val user = User(
-                    uid = firebaseUser.uid,
-                    email = firebaseUser.email ?: "",
-                    fullName = firebaseUser.displayName ?: "",
-                    photoUrl = firebaseUser.photoUrl?.toString() ?: "",
-                    role = role,
-                    activeRole = if (role == UserRole.PROVIDER.value) "provider" else "customer"
-                )
-                firestore.collection("users")
-                    .document(firebaseUser.uid)
-                    .set(user)
-                    .await()
+                val resolvedRole =
+                    if (role == UserRole.PROVIDER.value) UserRole.PROVIDER.value else UserRole.CUSTOMER.value
+                commitFirestoreUser(firebaseUser.uid, resolvedRole)
             }
             AuthResult.Success(firebaseUser)
         } catch (e: Exception) {
@@ -105,10 +98,10 @@ class AuthRepository @Inject constructor(
     suspend fun isProfileSetupComplete(uid: String, role: String): Boolean {
         return try {
             if (role == "customer") {
-                val doc = firestore.collection("customerPreferences").document(uid).get().await()
+                val doc = firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(uid).get().await()
                 doc.exists() && doc.getString("homeAddress")?.isNotBlank() == true
             } else {
-                val doc = firestore.collection("providerProfiles").document(uid).get().await()
+                val doc = firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).get().await()
                 doc.exists() && doc.getString("serviceCategory")?.isNotBlank() == true
             }
         } catch (e: Exception) {
@@ -118,8 +111,8 @@ class AuthRepository @Inject constructor(
 
     suspend fun getUserRole(uid: String): String {
         return try {
-            val doc = firestore.collection("users").document(uid).get().await()
-            doc.getString("activeRole") ?: "customer"
+            val doc = firestore.collection(AuthCollections.USERS).document(uid).get().await()
+            doc.getString("role") ?: "customer"
         } catch (e: Exception) {
             "customer"
         }
@@ -134,21 +127,16 @@ class AuthRepository @Inject constructor(
         photoUrl: String?
     ): Result<Unit> {
         return try {
-            val prefs = CustomerPreferences(
+            val prefs = CustomerProfile(
                 uid = uid,
+                phone = phone?.takeIf { it.isNotBlank() },
                 homeAddress = homeAddress,
                 locationAwareness = locationAwareness,
                 pushNotifications = pushNotifications,
                 smartSuggestions = true
             )
-            firestore.collection("customerPreferences").document(uid).set(prefs).await()
-
-            val updates = mutableMapOf<String, Any>()
-            phone?.let { if (it.isNotBlank()) updates["phone"] = it }
-            photoUrl?.let { if (it.isNotBlank()) updates["photoUrl"] = it }
-            if (updates.isNotEmpty()) {
-                firestore.collection("users").document(uid).update(updates).await()
-            }
+            firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(uid).set(prefs).await()
+            syncAuthProfileFromStrings(uid, displayName = null, photoUrl = photoUrl)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -170,11 +158,23 @@ class AuthRepository @Inject constructor(
         availabilityEnd: String
     ): Result<Unit> {
         return try {
-            val profile = ProviderProfile(
+            val existing = firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).get().await()
+            val resolvedDisplayName = displayName.takeIf { it.isNotBlank() }
+                ?: auth.currentUser?.takeIf { it.uid == uid }?.displayName
+                ?: existing.getString("displayName").orEmpty()
+            val resolvedPhone = phone.takeIf { it.isNotBlank() }
+                ?: existing.getString("phone").orEmpty()
+
+            syncAuthProfileFromStrings(
+                uid,
+                displayName = resolvedDisplayName.takeIf { it.isNotBlank() },
+                photoUrl = photoUrl
+            )
+
+            val profile = ProviderServiceProfile(
                 uid = uid,
-                displayName = displayName,
-                phone = phone,
-                photoUrl = photoUrl ?: "",
+                displayName = resolvedDisplayName,
+                phone = resolvedPhone,
                 serviceCategory = serviceCategory,
                 serviceDescription = serviceDescription,
                 hourlyRate = hourlyRate,
@@ -184,7 +184,7 @@ class AuthRepository @Inject constructor(
                 availabilityStart = availabilityStart,
                 availabilityEnd = availabilityEnd
             )
-            firestore.collection("providerProfiles").document(uid).set(profile).await()
+            firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).set(profile).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -192,4 +192,51 @@ class AuthRepository @Inject constructor(
     }
 
     fun signOut() = auth.signOut()
+
+    private suspend fun syncDisplayNameToAuth(user: FirebaseUser, displayName: String) {
+        if (displayName.isBlank()) return
+        val request = UserProfileChangeRequest.Builder().setDisplayName(displayName).build()
+        user.updateProfile(request).await()
+    }
+
+    /**
+     * Updates Firebase Auth profile (display name / photo URL) when [auth.currentUser] matches [uid].
+     * Phone numbers require Phone Auth; keep those in [CustomerProfile] / [ProviderServiceProfile].
+     */
+    private suspend fun syncAuthProfileFromStrings(
+        uid: String,
+        displayName: String?,
+        photoUrl: String?
+    ) {
+        val user = auth.currentUser ?: return
+        if (user.uid != uid) return
+        val builder = UserProfileChangeRequest.Builder()
+        var any = false
+        displayName?.takeIf { it.isNotBlank() }?.let {
+            builder.setDisplayName(it)
+            any = true
+        }
+        photoUrl?.takeIf { it.isNotBlank() }?.let {
+            builder.setPhotoUri(Uri.parse(it))
+            any = true
+        }
+        if (!any) return
+        user.updateProfile(builder.build()).await()
+        user.reload().await()
+    }
+
+    /** Role + timestamps only; identity lives on [FirebaseUser]. */
+    private suspend fun commitFirestoreUser(uid: String, role: String) {
+        val docRef = firestore.collection(AuthCollections.USERS).document(uid)
+        val snap = docRef.get().await()
+        val data = mutableMapOf<String, Any>(
+            "role" to role,
+            "updatedAt" to Timestamp.now()
+        )
+        if (!snap.exists()) {
+            data["createdAt"] = Timestamp.now()
+        }
+        docRef.set(data, SetOptions.merge()).await()
+    }
+
 }
