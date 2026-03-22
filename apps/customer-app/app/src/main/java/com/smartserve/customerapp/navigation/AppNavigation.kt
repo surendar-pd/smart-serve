@@ -4,23 +4,63 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navigation
+import com.smartserve.sharedauth.AuthRoutes
+import com.smartserve.sharedauth.SessionBootstrapRoute
+import com.smartserve.sharedauth.UserRole
+import com.smartserve.sharedauth.authNavGraph
 import com.smartserve.customerapp.ui.app.AppScreen
-import com.smartserve.customerapp.ui.auth.AuthScreen
 
 @Composable
 fun AppNavigation() {
-    val navController = rememberNavController()
+  val navController = rememberNavController()
 
-    NavHost(
+  NavHost(
+    navController    = navController,
+    startDestination = Routes.Bootstrap
+  ) {
+    composable(Routes.Bootstrap) {
+      SessionBootstrapRoute(
         navController = navController,
-        startDestination = Routes.Auth,
-    ) {
-        composable(Routes.Auth) {
-            AuthScreen(navController = navController)
-        }
-        composable(Routes.App) {
-            AppScreen()
-        }
+        bootstrapRoute = Routes.Bootstrap,
+        appRoute = Routes.App,
+        authRoute = Routes.Auth,
+        expectedAppRole = UserRole.CUSTOMER.value,
+      )
     }
-}
 
+    // ── Auth graph ─────────────────────────────────
+    navigation(
+      route            = Routes.Auth,
+      startDestination = AuthRoutes.INTRO_CUSTOMER
+    ) {
+      authNavGraph(
+        navController = navController,
+        onNavigateToCustomerHome = {
+          navController.navigate(Routes.App) {
+            popUpTo(Routes.Auth) { inclusive = true }
+          }
+        },
+        onNavigateToProviderHome = {
+          navController.navigate(Routes.App) {
+            popUpTo(Routes.Auth) { inclusive = true }
+          }
+        },
+        onNavigateToSignUpFromLogin = {
+          navController.navigate(AuthRoutes.SIGNUP_CUSTOMER)
+        },
+      )
+    }
+
+    // ── App graph ──────────────────────────────────
+    composable(Routes.App) {
+      AppScreen(
+        onLogout = {
+          navController.navigate(Routes.Auth) {
+            popUpTo(Routes.App) { inclusive = true }
+          }
+        },
+      )
+    }
+  }
+}

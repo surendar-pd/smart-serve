@@ -6,7 +6,8 @@
         "build": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "cd apps/customer-app && ./gradlew assembleDebug"
+                "cwd": "{projectRoot}",
+                "command": "./gradlew assembleDebug"
             },
             "outputs": [
                 "{projectRoot}/app/build/outputs"
@@ -15,7 +16,8 @@
         "installDebug": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "cd apps/customer-app && ./gradlew installDebug"
+                "cwd": "{projectRoot}",
+                "command": "./gradlew installDebug"
             }
         }
     }
