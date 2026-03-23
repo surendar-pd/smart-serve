@@ -59,6 +59,7 @@ fun AppScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         onNavigateToCategory = { selectedCategory = it },
                         onNavigateToProfile = { showProfile = true },
+                        onNavigateToSearch = { selectedTabIndex = 1 },
                     )
                 }
                 1 -> SearchScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
