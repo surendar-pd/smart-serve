@@ -3,6 +3,7 @@ package com.smartserve.customerapp.ui.app
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.LocalShipping
@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -35,7 +36,6 @@ import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
-import com.smartserve.sharedui.SharedListItem
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
@@ -50,7 +50,6 @@ private val categories = listOf(
     Category("Handyman", Icons.Filled.Build),
     Category("Pet Care", Icons.Filled.Pets),
     Category("Cooking", Icons.Filled.Restaurant),
-    Category("Photography", Icons.Filled.CameraAlt),
 )
 
 private data class SmartPick(val name: String, val subtitle: String, val isRebook: Boolean)
@@ -125,21 +124,38 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         smartPicks.forEachIndexed { index, pick ->
-            SharedListItem(
-                title = pick.name,
-                supportingText = pick.subtitle,
-                leadingAvatar = { SharedAvatar(name = pick.name, size = 40.dp) },
-                trailing = {
-                    SharedButton(
-                        text = if (pick.isRebook) "Rebook" else "Book",
-                        onClick = {},
-                        variant = if (pick.isRebook) SharedButtonVariant.Outline else SharedButtonVariant.Default,
-                        modifier = Modifier.width(88.dp),
-                    )
-                },
-                showDivider = index > 0,
-            )
+            if (index > 0) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
+            SmartPickRow(pick = pick)
         }
+    }
+}
+
+@Composable
+private fun SmartPickRow(pick: SmartPick) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SharedAvatar(name = pick.name, size = 44.dp)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            SharedText(text = pick.name, variant = SharedTextVariant.BodyStrong)
+            SharedText(text = pick.subtitle, variant = SharedTextVariant.Body)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        SharedButton(
+            text = if (pick.isRebook) "Rebook" else "Book",
+            onClick = {},
+            variant = if (pick.isRebook) SharedButtonVariant.Outline else SharedButtonVariant.Default,
+            modifier = Modifier.width(88.dp),
+        )
     }
 }
 
@@ -151,17 +167,18 @@ private fun CategoryCard(
 ) {
     SharedCard(
         onClick = onClick,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        modifier = Modifier.width(100.dp),
+        contentPadding = PaddingValues(12.dp),
+        modifier = Modifier.width(90.dp),
     ) {
         Column(
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(28.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
             SharedText(text = label, variant = SharedTextVariant.Caption)
