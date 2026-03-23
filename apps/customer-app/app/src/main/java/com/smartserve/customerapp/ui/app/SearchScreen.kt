@@ -42,7 +42,7 @@ fun SearchScreen(modifier: Modifier = Modifier) {
             onValueChange = { searchQuery = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, top = 12.dp, bottom = 8.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
             placeholder = "Search services or providers...",
             leadingIcon = {
                 Icon(
