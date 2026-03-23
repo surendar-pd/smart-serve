@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -81,7 +80,7 @@ fun HomeScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, top = 12.dp, bottom = 16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
