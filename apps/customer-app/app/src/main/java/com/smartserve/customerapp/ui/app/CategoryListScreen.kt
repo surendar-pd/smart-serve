@@ -28,15 +28,18 @@ import com.smartserve.sharedui.SharedTopAppBar
 private data class ProviderItem(val name: String, val description: String)
 
 private val mockProviders = listOf(
-    ProviderItem("CleanRight Pro", "Professional home & office cleaning"),
-    ProviderItem("SparkleClean", "Deep cleaning & move-out specialists"),
-    ProviderItem("Fresh Start Cleaning", "Eco-friendly cleaning services"),
-    ProviderItem("Maria's Housekeeping", "Reliable weekly & bi-weekly cleaning"),
+    ProviderItem("Sarah M.", "Home cleaning · 4.9 ★ · 120+ jobs"),
+    ProviderItem("David K.", "Eco-friendly, background checked"),
+    ProviderItem("Priya N.", "Deep cleaning specialist"),
+    ProviderItem("Tom H.", "Move-out & post-reno cleaning"),
+    ProviderItem("Aisha R.", "Weekly & bi-weekly packages"),
+    ProviderItem("Carlos J.", "Same-day availability"),
 )
 
 @Composable
 fun CategoryListScreen(
     modifier: Modifier = Modifier,
+    categoryName: String = "Services",
     onBack: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -49,7 +52,7 @@ fun CategoryListScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         SharedTopAppBar(
-            title = "Cleaning Services",
+            title = categoryName,
             onBack = onBack,
         )
 

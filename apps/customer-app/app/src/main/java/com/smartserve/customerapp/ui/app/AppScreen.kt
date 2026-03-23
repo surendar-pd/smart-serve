@@ -22,7 +22,7 @@ fun AppScreen(
     onLogout: () -> Unit,
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var showCategoryList by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("") }
 
     val tabs = listOf(
         AppTab(title = "Home", icon = Icons.Filled.Home),
@@ -36,19 +36,20 @@ fun AppScreen(
         tabs = tabs,
         onTabSelected = {
             selectedTabIndex = it
-            if (it != 0) showCategoryList = false
+            if (it != 0) selectedCategory = ""
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
-                0 -> if (showCategoryList) {
+                0 -> if (selectedCategory.isNotEmpty()) {
                     CategoryListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onBack = { showCategoryList = false },
+                        categoryName = selectedCategory,
+                        onBack = { selectedCategory = "" },
                     )
                 } else {
                     HomeScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onNavigateToCategory = { showCategoryList = true },
+                        onNavigateToCategory = { selectedCategory = it },
                     )
                 }
                 1 -> SearchScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))

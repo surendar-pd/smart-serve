@@ -14,8 +14,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -41,6 +46,11 @@ private val categories = listOf(
     Category("Cleaning", Icons.Filled.CleaningServices),
     Category("Tutoring", Icons.Filled.School),
     Category("Moving", Icons.Filled.LocalShipping),
+    Category("Lawn Care", Icons.Filled.LocalFlorist),
+    Category("Handyman", Icons.Filled.Build),
+    Category("Pet Care", Icons.Filled.Pets),
+    Category("Cooking", Icons.Filled.Restaurant),
+    Category("Photography", Icons.Filled.CameraAlt),
 )
 
 private data class SmartPick(val name: String, val subtitle: String, val isRebook: Boolean)
@@ -48,14 +58,14 @@ private data class SmartPick(val name: String, val subtitle: String, val isReboo
 private val smartPicks = listOf(
     SmartPick("Maria G.", "Home Cleaning · Last booked Jan", isRebook = true),
     SmartPick("James T.", "Math Tutoring · Last booked Feb", isRebook = true),
-    SmartPick("Quick Move Co.", "Moving & Packing", isRebook = false),
-    SmartPick("SparkleClean", "Deep Cleaning Service", isRebook = false),
+    SmartPick("Sam R.", "Moving & Packing", isRebook = false),
+    SmartPick("Priya N.", "Deep Cleaning Specialist", isRebook = false),
 )
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    onNavigateToCategory: () -> Unit = {},
+    onNavigateToCategory: (String) -> Unit = {},
 ) {
     val greetingName = greetingDisplayName()
 
@@ -103,7 +113,7 @@ fun HomeScreen(
                 CategoryCard(
                     label = category.label,
                     icon = category.icon,
-                    onClick = onNavigateToCategory,
+                    onClick = { onNavigateToCategory(category.label) },
                 )
             }
         }
@@ -124,6 +134,7 @@ fun HomeScreen(
                         text = if (pick.isRebook) "Rebook" else "Book",
                         onClick = {},
                         variant = if (pick.isRebook) SharedButtonVariant.Outline else SharedButtonVariant.Default,
+                        modifier = Modifier.width(88.dp),
                     )
                 },
                 showDivider = index > 0,
