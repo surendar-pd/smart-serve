@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,6 +37,7 @@ import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
+import com.smartserve.sharedui.SharedIconButton
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
@@ -65,6 +67,7 @@ private val smartPicks = listOf(
 fun HomeScreen(
     modifier: Modifier = Modifier,
     onNavigateToCategory: (String) -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
 ) {
     val greetingName = greetingDisplayName()
 
@@ -74,10 +77,18 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 20.dp),
     ) {
-        SharedText(
-            text = "Hello, $greetingName",
-            variant = SharedTextVariant.Title,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            SharedText(text = "Hello, $greetingName", variant = SharedTextVariant.Title)
+            SharedIconButton(
+                onClick = onNavigateToProfile,
+                icon = Icons.Filled.Person,
+                contentDescription = "Profile",
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

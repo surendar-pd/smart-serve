@@ -60,29 +60,16 @@ fun CategoryListScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
-    val relevant = allProviders.filter { categoryName in it.categories }
-    val others = allProviders.filter { categoryName !in it.categories }
-
-    val filtered = if (searchQuery.isBlank()) {
-        relevant to others
-    } else {
-        val query = searchQuery
-        relevant.filter {
-            it.name.contains(query, ignoreCase = true) ||
-                it.description.contains(query, ignoreCase = true)
-        } to others.filter {
-            it.name.contains(query, ignoreCase = true) ||
-                it.description.contains(query, ignoreCase = true)
+    val providers = allProviders.filter { categoryName in it.categories }.let { relevant ->
+        if (searchQuery.isBlank()) relevant
+        else relevant.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
+                it.description.contains(searchQuery, ignoreCase = true)
         }
     }
 
-    val (matchedRelevant, matchedOthers) = filtered
-
     Column(modifier = modifier.fillMaxSize()) {
-        SharedTopAppBar(
-            title = categoryName,
-            onBack = onBack,
-        )
+        SharedTopAppBar(title = categoryName, onBack = onBack)
 
         SharedTextField(
             value = searchQuery,
@@ -100,57 +87,28 @@ fun CategoryListScreen(
             },
         )
 
-        LazyColumn {
-            if (matchedRelevant.isNotEmpty()) {
-                item {
-                    SharedText(
-                        text = "Available Providers",
-                        variant = SharedTextVariant.Title,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                itemsIndexed(matchedRelevant) { index, provider ->
-                    SharedListItem(
-                        title = provider.name,
-                        supportingText = provider.description,
-                        leadingAvatar = { SharedAvatar(name = provider.name, size = 40.dp) },
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        showDivider = index > 0,
-                        onClick = {},
-                    )
-                }
-            }
+        SharedText(
+            text = "Available Providers",
+            variant = SharedTextVariant.Title,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
-            if (matchedOthers.isNotEmpty()) {
-                item {
-                    SharedText(
-                        text = "More Providers",
-                        variant = SharedTextVariant.Title,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
-                    )
-                }
-                itemsIndexed(matchedOthers) { index, provider ->
-                    SharedListItem(
-                        title = provider.name,
-                        supportingText = provider.description,
-                        leadingAvatar = { SharedAvatar(name = provider.name, size = 40.dp) },
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        showDivider = index > 0,
-                        onClick = {},
-                    )
-                }
+        LazyColumn {
+            itemsIndexed(providers) { index, provider ->
+                SharedListItem(
+                    title = provider.name,
+                    supportingText = provider.description,
+                    leadingAvatar = { SharedAvatar(name = provider.name, size = 40.dp) },
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    showDivider = index > 0,
+                    onClick = {},
+                )
             }
         }
     }
