@@ -55,7 +55,7 @@ private val servicesByCategory = mapOf(
 internal fun servicesFor(categories: List<String>): List<Service> =
     categories.flatMap { servicesByCategory[it] ?: emptyList() }.distinctBy { it.name }
 
-internal data class CartItem(
+data class CartItem(
     val providerName: String,
     val serviceName: String,
     val price: String,
