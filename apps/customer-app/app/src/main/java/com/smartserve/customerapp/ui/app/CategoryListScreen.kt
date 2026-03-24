@@ -28,6 +28,7 @@ fun CategoryListScreen(
     modifier: Modifier = Modifier,
     categoryName: String = "Services",
     onBack: () -> Unit,
+    onProviderClick: (providerName: String) -> Unit = {},
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -72,7 +73,7 @@ fun CategoryListScreen(
                         )
                     },
                     showDivider = index > 0,
-                    onClick = {},
+                    onClick = { onProviderClick(provider.name) },
                 )
             }
         }

@@ -23,6 +23,8 @@ fun AppScreen(
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var selectedCategory by remember { mutableStateOf("") }
+    var selectedProvider by remember { mutableStateOf("") }
+    var bookingService by remember { mutableStateOf("") }
     var showProfile by remember { mutableStateOf(false) }
 
     val tabs = listOf(
@@ -39,21 +41,41 @@ fun AppScreen(
             selectedTabIndex = it
             if (it != 0) {
                 selectedCategory = ""
+                selectedProvider = ""
+                bookingService = ""
                 showProfile = false
             }
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
                 0 -> when {
-                    showProfile -> ProfileScreen(
+                    bookingService.isNotEmpty() -> BookingScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onBack = { showProfile = false },
-                        onLogout = onLogout,
+                        providerName = selectedProvider,
+                        serviceName = bookingService,
+                        onBack = { bookingService = "" },
+                        onConfirm = {
+                            bookingService = ""
+                            selectedProvider = ""
+                            selectedCategory = ""
+                        },
+                    )
+                    selectedProvider.isNotEmpty() -> ServiceListScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        providerName = selectedProvider,
+                        onBack = { selectedProvider = "" },
+                        onBookService = { bookingService = it },
                     )
                     selectedCategory.isNotEmpty() -> CategoryListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         categoryName = selectedCategory,
                         onBack = { selectedCategory = "" },
+                        onProviderClick = { selectedProvider = it },
+                    )
+                    showProfile -> ProfileScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { showProfile = false },
+                        onLogout = onLogout,
                     )
                     else -> HomeScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -62,7 +84,13 @@ fun AppScreen(
                         onNavigateToSearch = { selectedTabIndex = 1 },
                     )
                 }
-                1 -> SearchScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
+                1 -> SearchScreen(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    onProviderClick = {
+                        selectedProvider = it
+                        selectedTabIndex = 0
+                    },
+                )
                 2 -> CartScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
                 3 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
             }

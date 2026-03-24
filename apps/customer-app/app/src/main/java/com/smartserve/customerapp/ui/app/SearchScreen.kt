@@ -26,7 +26,10 @@ import com.smartserve.sharedui.SharedTextVariant
 import com.smartserve.sharedui.SharedText
 
 @Composable
-fun SearchScreen(modifier: Modifier = Modifier) {
+fun SearchScreen(
+    modifier: Modifier = Modifier,
+    onProviderClick: (providerName: String) -> Unit = {},
+) {
     var searchQuery by remember { mutableStateOf("") }
 
     val results = if (searchQuery.isBlank()) emptyList()
@@ -87,7 +90,7 @@ fun SearchScreen(modifier: Modifier = Modifier) {
                                 )
                             },
                             showDivider = index > 0,
-                            onClick = {},
+                            onClick = { onProviderClick(provider.name) },
                         )
                     }
                 }
