@@ -35,7 +35,7 @@ import com.smartserve.sharedui.SharedTopAppBar
 fun ServiceListScreen(
     providerName: String,
     onBack: () -> Unit,
-    onBookService: (serviceName: String) -> Unit,
+    onAddToCart: (CartItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val provider = allProviders.find { it.name == providerName }
@@ -91,8 +91,8 @@ fun ServiceListScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         SharedButton(
-                            text = "Book",
-                            onClick = { onBookService(service.name) },
+                            text = "Add to Cart",
+                            onClick = { onAddToCart(CartItem(providerName, service.name, service.price)) },
                             variant = SharedButtonVariant.Default,
                         )
                     }

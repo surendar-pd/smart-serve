@@ -50,6 +50,7 @@ fun BookingScreen(
     providerName: String,
     serviceName: String,
     onBack: () -> Unit,
+    onAddToCart: () -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -149,6 +150,12 @@ fun BookingScreen(
             }
 
             Spacer(modifier = Modifier.height(4.dp))
+            SharedButton(
+                text = "Add Another Service",
+                onClick = onAddToCart,
+                variant = SharedButtonVariant.Outline,
+                modifier = Modifier.fillMaxWidth(),
+            )
             SharedButton(
                 text = "Confirm Booking",
                 onClick = onConfirm,

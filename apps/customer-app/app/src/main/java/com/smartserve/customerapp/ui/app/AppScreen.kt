@@ -24,8 +24,9 @@ fun AppScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var selectedCategory by remember { mutableStateOf("") }
     var selectedProvider by remember { mutableStateOf("") }
-    var bookingService by remember { mutableStateOf("") }
     var showProfile by remember { mutableStateOf(false) }
+    var cartItems by remember { mutableStateOf(listOf<CartItem>()) }
+    var checkoutRequested by remember { mutableStateOf(false) }
 
     val tabs = listOf(
         AppTab(title = "Home", icon = Icons.Filled.Home),
@@ -42,29 +43,20 @@ fun AppScreen(
             if (it != 0) {
                 selectedCategory = ""
                 selectedProvider = ""
-                bookingService = ""
                 showProfile = false
+            }
+            if (it != 2) {
+                checkoutRequested = false
             }
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
                 0 -> when {
-                    bookingService.isNotEmpty() -> BookingScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        providerName = selectedProvider,
-                        serviceName = bookingService,
-                        onBack = { bookingService = "" },
-                        onConfirm = {
-                            bookingService = ""
-                            selectedProvider = ""
-                            selectedCategory = ""
-                        },
-                    )
                     selectedProvider.isNotEmpty() -> ServiceListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         providerName = selectedProvider,
                         onBack = { selectedProvider = "" },
-                        onBookService = { bookingService = it },
+                        onAddToCart = { cartItems = cartItems + it },
                     )
                     selectedCategory.isNotEmpty() -> CategoryListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -91,7 +83,27 @@ fun AppScreen(
                         selectedTabIndex = 0
                     },
                 )
-                2 -> CartScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
+                2 -> if (checkoutRequested && cartItems.isNotEmpty()) {
+                    BookingScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        providerName = cartItems.first().providerName,
+                        serviceName = cartItems.joinToString(", ") { it.serviceName },
+                        onBack = { checkoutRequested = false },
+                        onAddToCart = { checkoutRequested = false },
+                        onConfirm = {
+                            cartItems = emptyList()
+                            checkoutRequested = false
+                            selectedTabIndex = 0
+                        },
+                    )
+                } else {
+                    CartScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        cartItems = cartItems,
+                        onRemoveItem = { cartItems = cartItems - it },
+                        onCheckout = { checkoutRequested = true },
+                    )
+                }
                 3 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
             }
         },
