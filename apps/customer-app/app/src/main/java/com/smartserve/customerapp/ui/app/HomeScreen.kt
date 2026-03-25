@@ -61,7 +61,7 @@ private val categories = listOf(
 private data class SmartPick(val name: String, val subtitle: String, val isRebook: Boolean)
 
 private val smartPicks = listOf(
-    SmartPick("Maria G.", "Home Cleaning · Last booked Jan", isRebook = true),
+    SmartPick("Sarah M.", "Home Cleaning · Last booked Jan", isRebook = true),
     SmartPick("James T.", "Math Tutoring · Last booked Feb", isRebook = true),
     SmartPick("Sam R.", "Moving & Packing", isRebook = false),
     SmartPick("Priya N.", "Deep Cleaning Specialist", isRebook = false),
@@ -73,6 +73,7 @@ fun HomeScreen(
     onNavigateToCategory: (String) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToProvider: (String) -> Unit = {},
 ) {
     val greetingName = greetingDisplayName()
 
@@ -157,13 +158,16 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
-            SmartPickRow(pick = pick)
+            SmartPickRow(pick = pick, onNavigateToProvider = onNavigateToProvider)
         }
     }
 }
 
 @Composable
-private fun SmartPickRow(pick: SmartPick) {
+private fun SmartPickRow(
+    pick: SmartPick,
+    onNavigateToProvider: (String) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -179,7 +183,7 @@ private fun SmartPickRow(pick: SmartPick) {
         Spacer(modifier = Modifier.width(8.dp))
         SharedButton(
             text = if (pick.isRebook) "Rebook" else "Book",
-            onClick = {},
+            onClick = { onNavigateToProvider(pick.name) },
             variant = if (pick.isRebook) SharedButtonVariant.Outline else SharedButtonVariant.Default,
         )
     }

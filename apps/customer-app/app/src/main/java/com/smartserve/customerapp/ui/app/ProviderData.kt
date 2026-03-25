@@ -59,6 +59,8 @@ data class CartItem(
     val providerName: String,
     val serviceName: String,
     val price: String,
+    val date: String = "",
+    val time: String = "",
 )
 
 internal val allProviders = listOf(

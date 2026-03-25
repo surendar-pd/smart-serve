@@ -1,9 +1,12 @@
 package com.smartserve.customerapp.ui.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -56,42 +59,49 @@ fun SearchScreen(
             },
         )
 
-        when {
-            searchQuery.isBlank() -> SharedEmptyState(
-                title = "Find a service",
-                description = "Search by service type, provider name, or category",
-                icon = Icons.Filled.Search,
-                modifier = Modifier.fillMaxSize(),
-            )
-            results.isEmpty() -> SharedEmptyState(
-                title = "No results",
-                description = "Try a different search term",
-                icon = Icons.Filled.Search,
-                modifier = Modifier.fillMaxSize(),
-            )
-            else -> {
-                SharedText(
-                    text = "${results.size} result${if (results.size == 1) "" else "s"}",
-                    variant = SharedTextVariant.Caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.TopStart,
+        ) {
+            when {
+                searchQuery.isBlank() -> SharedEmptyState(
+                    title = "Find a service",
+                    description = "Search by service type, provider name, or category",
+                    icon = Icons.Filled.Search,
+                    modifier = Modifier.fillMaxSize(),
                 )
-                LazyColumn {
-                    itemsIndexed(results) { index, provider ->
-                        SharedListItem(
-                            title = provider.name,
-                            supportingText = provider.description,
-                            leadingAvatar = { SharedAvatar(name = provider.name, size = 40.dp) },
-                            trailing = {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            showDivider = index > 0,
-                            onClick = { onProviderClick(provider.name) },
-                        )
+                results.isEmpty() -> SharedEmptyState(
+                    title = "No results",
+                    description = "Try a different search term",
+                    icon = Icons.Filled.Search,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                else -> Column {
+                    SharedText(
+                        text = "${results.size} result${if (results.size == 1) "" else "s"}",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    LazyColumn {
+                        itemsIndexed(results) { index, provider ->
+                            SharedListItem(
+                                title = provider.name,
+                                supportingText = provider.description,
+                                leadingAvatar = { SharedAvatar(name = provider.name, size = 40.dp) },
+                                trailing = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                showDivider = index > 0,
+                                onClick = { onProviderClick(provider.name) },
+                            )
+                        }
                     }
                 }
             }

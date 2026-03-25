@@ -49,9 +49,9 @@ import java.util.Locale
 fun BookingScreen(
     providerName: String,
     serviceName: String,
+    price: String,
     onBack: () -> Unit,
-    onAddToCart: () -> Unit,
-    onConfirm: () -> Unit,
+    onAddToCart: (CartItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedDate by remember { mutableStateOf("") }
@@ -98,7 +98,7 @@ fun BookingScreen(
             SharedProgress(progress = 0.5f)
 
             SharedText(text = serviceName, variant = SharedTextVariant.Title)
-            SharedText(text = "with $providerName", variant = SharedTextVariant.Body)
+            SharedText(text = "with $providerName · $price", variant = SharedTextVariant.Body)
 
             SharedText(text = "Select Date", variant = SharedTextVariant.Label)
             SharedButton(
@@ -151,14 +151,18 @@ fun BookingScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
             SharedButton(
-                text = "Add Another Service",
-                onClick = onAddToCart,
-                variant = SharedButtonVariant.Outline,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            SharedButton(
-                text = "Confirm Booking",
-                onClick = onConfirm,
+                text = "Add to Cart",
+                onClick = {
+                    onAddToCart(
+                        CartItem(
+                            providerName = providerName,
+                            serviceName = serviceName,
+                            price = price,
+                            date = selectedDate,
+                            time = selectedTime,
+                        )
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(16.dp))
