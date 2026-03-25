@@ -61,7 +61,7 @@ data class CartItem(
     val price: String,
     val date: String = "",
     val time: String = "",
-    val budget: String = "",
+    val timeRange: String = "",
 )
 
 internal val allProviders = listOf(

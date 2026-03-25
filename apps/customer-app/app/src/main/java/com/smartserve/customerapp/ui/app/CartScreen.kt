@@ -53,7 +53,7 @@ fun CartScreen(
                             append(item.price)
                             if (item.date.isNotEmpty()) append(" · ${item.date}")
                             if (item.time.isNotEmpty()) append(" · ${item.time}")
-                            if (item.budget.isNotEmpty()) append(" · Budget: ${item.budget}")
+                            if (item.timeRange.isNotEmpty()) append(" · ${item.timeRange}")
                         },
                         leadingAvatar = { SharedAvatar(name = item.providerName, size = 40.dp) },
                         trailing = {

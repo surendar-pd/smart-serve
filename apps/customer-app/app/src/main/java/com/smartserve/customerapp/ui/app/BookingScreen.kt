@@ -59,7 +59,7 @@ fun BookingScreen(
     var selectedTime by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("123 Main St, Ottawa") }
     var notes by remember { mutableStateOf("") }
-    var budget by remember { mutableStateOf("") }
+    var timeRange by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
@@ -142,10 +142,10 @@ fun BookingScreen(
             )
 
             SharedTextField(
-                value = budget,
-                onValueChange = { budget = it },
-                label = "Budget range",
-                placeholder = "e.g. \$50–\$100",
+                value = timeRange,
+                onValueChange = { timeRange = it },
+                label = "Available time window",
+                placeholder = "e.g. 9 AM – 1 PM",
             )
 
             SharedText(text = "Provider", variant = SharedTextVariant.Label)
@@ -174,7 +174,7 @@ fun BookingScreen(
                             price = price,
                             date = selectedDate,
                             time = selectedTime,
-                            budget = budget,
+                            timeRange = timeRange,
                         )
                     )
                 },
