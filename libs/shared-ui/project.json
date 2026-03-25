@@ -6,7 +6,7 @@
         "build": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "apps/provider-app/gradlew -p libs/shared-ui assembleRelease"
+                "command": "apps/provider-app/gradlew.bat -p libs/shared-ui assembleRelease"
             },
             "outputs": [
                 "{projectRoot}/build"

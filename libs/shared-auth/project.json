@@ -6,8 +6,7 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "{projectRoot}",
-        "command": "./gradlew assembleDebug"
+        "command": "apps/provider-app/gradlew.bat -p libs/shared-auth assembleDebug"
       },
       "outputs": ["{projectRoot}/build"]
     }

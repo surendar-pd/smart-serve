@@ -2,9 +2,19 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("com.google.gms.google-services")
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
+}
+
+val hasGoogleServicesConfig =
+    file("google-services.json").exists() ||
+        file("src/debug/google-services.json").exists() ||
+        file("src/release/google-services.json").exists()
+
+if (hasGoogleServicesConfig) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle("google-services.json not found for :app. Skipping com.google.gms.google-services plugin.")
 }
 
 android {
