@@ -185,6 +185,7 @@ private fun SmartPickRow(
             text = if (pick.isRebook) "Rebook" else "Book",
             onClick = { onNavigateToProvider(pick.name) },
             variant = if (pick.isRebook) SharedButtonVariant.Outline else SharedButtonVariant.Default,
+            modifier = Modifier.height(36.dp),
         )
     }
 }

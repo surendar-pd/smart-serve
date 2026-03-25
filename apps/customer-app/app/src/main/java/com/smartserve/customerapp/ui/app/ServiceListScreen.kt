@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,7 +53,7 @@ fun ServiceListScreen(
                             SharedText(text = service.description, variant = SharedTextVariant.Body)
                             SharedText(
                                 text = service.price,
-                                variant = SharedTextVariant.Caption,
+                                variant = SharedTextVariant.BodyStrong,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         }
@@ -60,6 +61,7 @@ fun ServiceListScreen(
                         SharedButton(
                             text = "Add to Cart",
                             onClick = { onSelectService(providerName, service.name, service.price) },
+                            modifier = Modifier.height(36.dp),
                         )
                     }
                 }

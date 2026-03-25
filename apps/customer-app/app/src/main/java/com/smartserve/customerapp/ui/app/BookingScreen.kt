@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -58,10 +59,16 @@ fun BookingScreen(
     var selectedTime by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("123 Main St, Ottawa") }
     var notes by remember { mutableStateOf("") }
+    var budget by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState()
+        val today = System.currentTimeMillis()
+        val datePickerState = rememberDatePickerState(
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= today
+            },
+        )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -134,6 +141,13 @@ fun BookingScreen(
                 placeholder = "Any special instructions...",
             )
 
+            SharedTextField(
+                value = budget,
+                onValueChange = { budget = it },
+                label = "Budget range",
+                placeholder = "e.g. \$50–\$100",
+            )
+
             SharedText(text = "Provider", variant = SharedTextVariant.Label)
             SharedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -160,6 +174,7 @@ fun BookingScreen(
                             price = price,
                             date = selectedDate,
                             time = selectedTime,
+                            budget = budget,
                         )
                     )
                 },
