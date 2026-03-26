@@ -47,7 +47,6 @@ import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedIconButton
-import com.smartserve.sharedui.SharedScreenHeader
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
@@ -108,22 +107,17 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            SharedScreenHeader(
-                title = "Hello, $greetingName",
-                subtitle = "What are you looking for today?",
-                modifier = Modifier.weight(1f),
-            )
-            SharedIconButton(
-                onClick = onNavigateToProfile,
-                icon = Icons.Filled.Person,
-                contentDescription = "Profile",
-            )
-        }
+        CustomerTabHeader(
+            title = "Hello, $greetingName",
+            subtitle = "What are you looking for today?",
+            trailing = {
+                SharedIconButton(
+                    onClick = onNavigateToProfile,
+                    icon = Icons.Filled.Person,
+                    contentDescription = "Profile",
+                )
+            },
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 

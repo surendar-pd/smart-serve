@@ -2,8 +2,10 @@ package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,12 +44,18 @@ fun SearchScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        CustomerTabHeader(
+            title = "Search",
+            subtitle = "Find providers and services",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         SharedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             placeholder = "Search services or providers...",
             leadingIcon = {
                 Icon(

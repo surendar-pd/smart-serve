@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,7 +22,6 @@ import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
-import com.smartserve.sharedui.SharedTopAppBar
 
 @Composable
 fun ServiceListScreen(
@@ -34,7 +34,12 @@ fun ServiceListScreen(
     val services = servicesFor(provider?.categories ?: emptyList())
 
     Column(modifier = modifier.fillMaxSize()) {
-        SharedTopAppBar(title = providerName, onBack = onBack)
+        CustomerStackHeader(
+            title = providerName,
+            subtitle = "Choose a service",
+            onBack = onBack,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
 
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

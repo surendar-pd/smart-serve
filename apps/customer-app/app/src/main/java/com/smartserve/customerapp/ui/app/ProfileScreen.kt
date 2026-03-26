@@ -27,7 +27,6 @@ import com.smartserve.sharedui.SharedSwitchRow
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
-import com.smartserve.sharedui.SharedTopAppBar
 import kotlinx.coroutines.delay
 
 @Composable
@@ -47,7 +46,12 @@ fun ProfileScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        SharedTopAppBar(title = "Profile", onBack = onBack)
+        CustomerStackHeader(
+            title = "Profile",
+            subtitle = "Account and preferences",
+            onBack = onBack,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
 
         if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

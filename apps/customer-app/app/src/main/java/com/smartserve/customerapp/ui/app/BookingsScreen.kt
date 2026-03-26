@@ -1,29 +1,39 @@
 package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.smartserve.sharedui.SharedText
+import com.smartserve.sharedui.SharedTextVariant
 
 @Composable
 fun BookingsScreen(
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    Column(
         modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
+            .fillMaxSize(),
     ) {
-        Text(
-            text = "Bookings",
-            style = MaterialTheme.typography.headlineMedium,
+        CustomerTabHeader(
+            title = "Bookings",
+            subtitle = "Your upcoming activity",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f, fill = true),
+            contentAlignment = Alignment.Center,
+        ) {
+            SharedText(
+                text = "No bookings yet",
+                variant = SharedTextVariant.Body,
+            )
+        }
     }
 }
-

@@ -2,6 +2,7 @@ package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -13,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedListItem
-import com.smartserve.sharedui.SharedTopAppBar
 
 @Composable
 fun CategoryListScreen(
@@ -25,7 +25,12 @@ fun CategoryListScreen(
     val providers = allProviders.filter { categoryName in it.categories }
 
     Column(modifier = modifier.fillMaxSize()) {
-        SharedTopAppBar(title = categoryName, onBack = onBack)
+        CustomerStackHeader(
+            title = categoryName,
+            subtitle = "Providers for this category",
+            onBack = onBack,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
 
         LazyColumn {
             itemsIndexed(providers) { index, provider ->

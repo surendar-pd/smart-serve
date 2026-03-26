@@ -18,7 +18,6 @@ import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedIconButton
 import com.smartserve.sharedui.SharedListItem
-import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
 
 @Composable
@@ -29,10 +28,10 @@ fun CartScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        SharedText(
-            text = "My Cart (${cartItems.size} item${if (cartItems.size == 1) "" else "s"})",
-            variant = SharedTextVariant.Title,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+        CustomerTabHeader(
+            title = "My Cart (${cartItems.size} item${if (cartItems.size == 1) "" else "s"})",
+            subtitle = "Review items before you confirm",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
         )
 
         if (cartItems.isEmpty()) {

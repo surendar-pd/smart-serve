@@ -35,12 +35,10 @@ import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedChip
 import com.smartserve.sharedui.SharedProgress
-import com.smartserve.sharedui.SharedScaffold
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
-import com.smartserve.sharedui.SharedTopAppBar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -88,14 +86,17 @@ fun BookingScreen(
         }
     }
 
-    SharedScaffold(
-        modifier = modifier,
-        topBar = { SharedTopAppBar(title = "Book Service", onBack = onBack) },
-    ) { innerPadding ->
+    Column(modifier = modifier.fillMaxSize()) {
+        CustomerStackHeader(
+            title = "Book service",
+            subtitle = "$serviceName with $providerName · $price",
+            onBack = onBack,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -103,9 +104,6 @@ fun BookingScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             SharedProgress(progress = 0.5f)
-
-            SharedText(text = serviceName, variant = SharedTextVariant.Title)
-            SharedText(text = "with $providerName · $price", variant = SharedTextVariant.Body)
 
             SharedText(text = "Select Date", variant = SharedTextVariant.Label)
             SharedButton(
