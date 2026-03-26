@@ -62,6 +62,13 @@ cd apps/provider-app && ./gradlew installDebug
 cd apps/customer-app && ./gradlew installDebug
 ```
 
+On **Windows**, use the wrapper batch file:
+
+```sh
+cd apps\\provider-app && gradlew.bat installDebug
+cd apps\\customer-app && gradlew.bat installDebug
+```
+
 ## Finish your remote caching setup
 
 [Click here to finish setting up your workspace!](https://cloud.nx.app/connect/EQEanaB6kr)

@@ -7,7 +7,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "cwd": "{projectRoot}",
-                "command": "gradlew.bat assembleDebug"
+                "command": "node ../../tools/run-gradle.cjs assembleDebug"
             },
             "outputs": [
                 "{projectRoot}/app/build/outputs"
@@ -17,7 +17,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "cwd": "{projectRoot}",
-                "command": "gradlew.bat installDebug"
+                "command": "node ../../tools/run-gradle.cjs installDebug"
             }
         }
     }
