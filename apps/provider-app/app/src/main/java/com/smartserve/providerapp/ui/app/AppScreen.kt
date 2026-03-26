@@ -20,6 +20,7 @@ fun AppScreen(
     onLogout: () -> Unit,
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var showUiComponents by remember { mutableIntStateOf(0) }
 
     val tabs = listOf(
         AppTab(title = "Home", icon = Icons.Filled.Home),
@@ -30,15 +31,26 @@ fun AppScreen(
     AppLayout(
         currentTabIndex = selectedTabIndex,
         tabs = tabs,
-        onTabSelected = { selectedTabIndex = it },
+        onTabSelected = {
+            selectedTabIndex = it
+            if (it != 2) showUiComponents = 0
+        },
         content = { innerPadding ->
             when (selectedTabIndex) {
                 0 -> HomeScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
                 1 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-                2 -> ProfileScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    onLogout = onLogout,
-                )
+                2 -> if (showUiComponents == 1) {
+                    UiComponentsScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { showUiComponents = 0 },
+                    )
+                } else {
+                    ProfileScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onLogout = onLogout,
+                        onUiComponents = { showUiComponents = 1 },
+                    )
+                }
             }
         },
     )

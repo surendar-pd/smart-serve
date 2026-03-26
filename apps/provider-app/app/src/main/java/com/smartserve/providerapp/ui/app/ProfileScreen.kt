@@ -3,6 +3,7 @@ package com.smartserve.providerapp.ui.app
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -20,6 +21,7 @@ import com.smartserve.sharedui.SharedTextVariant
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit,
+    onUiComponents: () -> Unit,
 ) {
     val viewModel: AuthViewModel = hiltViewModel()
     Column(
@@ -31,6 +33,13 @@ fun ProfileScreen(
             text = "Profile",
             variant = SharedTextVariant.Title,
             fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SharedButton(
+            text = "UI components",
+            onClick = onUiComponents,
+            modifier = Modifier.fillMaxWidth(),
+            variant = SharedButtonVariant.Outline,
         )
         Spacer(Modifier.weight(1f))
         SharedButton(

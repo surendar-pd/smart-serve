@@ -31,32 +31,41 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedIconButton
+import com.smartserve.sharedui.SharedScreenHeader
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
+import kotlinx.coroutines.tasks.await
 
 private data class Category(val label: String, val icon: ImageVector)
 
-private val categories = listOf(
-    Category("Cleaning", Icons.Filled.CleaningServices),
-    Category("Tutoring", Icons.Filled.School),
-    Category("Moving", Icons.Filled.LocalShipping),
-    Category("Lawn Care", Icons.Filled.LocalFlorist),
-    Category("Handyman", Icons.Filled.Build),
-    Category("Pet Care", Icons.Filled.Pets),
-    Category("Cooking", Icons.Filled.Restaurant),
-)
+private fun categoryIconForLabel(label: String): ImageVector =
+    when (label.trim().lowercase()) {
+        "cleaning" -> Icons.Filled.CleaningServices
+        "tutoring" -> Icons.Filled.School
+        "moving" -> Icons.Filled.LocalShipping
+        "lawn care" -> Icons.Filled.LocalFlorist
+        "handyman" -> Icons.Filled.Build
+        "pet care" -> Icons.Filled.Pets
+        "cooking" -> Icons.Filled.Restaurant
+        else -> Icons.Filled.Build
+    }
 
 private data class SmartPick(val name: String, val subtitle: String, val isRebook: Boolean)
 
@@ -77,6 +86,22 @@ fun HomeScreen(
 ) {
     val greetingName = greetingDisplayName()
 
+    var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("categories")
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.getString("label")?.trim()?.takeIf { s -> s.isNotBlank() } }
+                .distinct()
+                .sortedBy { it.lowercase() }
+                .map { label -> Category(label = label, icon = categoryIconForLabel(label)) }
+        }.onSuccess { categories = it }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -88,7 +113,11 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            SharedText(text = "Hello, $greetingName", variant = SharedTextVariant.Title)
+            SharedScreenHeader(
+                title = "Hello, $greetingName",
+                subtitle = "What are you looking for today?",
+                modifier = Modifier.weight(1f),
+            )
             SharedIconButton(
                 onClick = onNavigateToProfile,
                 icon = Icons.Filled.Person,
