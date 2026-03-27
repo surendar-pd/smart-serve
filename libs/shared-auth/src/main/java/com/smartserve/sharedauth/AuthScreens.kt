@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -736,12 +735,17 @@ fun ProviderProfileSetupScreen(
         Spacer(Modifier.height(12.dp))
 
         SharedText(text = "Availability *", variant = SharedTextVariant.Label)
-        FlowRow(
+        Column(
+    modifier = Modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+) {
+    val rows = daysOfWeek.chunked(4)
+    rows.forEach { rowDays ->
+        Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            daysOfWeek.forEach { day ->
+            rowDays.forEach { day ->
                 val selected = day in state.availabilityDays
                 SharedChip(
                     label = day,
@@ -758,6 +762,7 @@ fun ProviderProfileSetupScreen(
                     },
                 )
             }
+        }
         }
 
         Spacer(Modifier.height(12.dp))
@@ -794,6 +799,7 @@ fun ProviderProfileSetupScreen(
                 )
             }
         )
+    }
     }
 }
 

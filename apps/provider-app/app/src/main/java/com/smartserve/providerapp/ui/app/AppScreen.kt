@@ -9,48 +9,70 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.smartserve.providerapp.ui.layouts.AppLayout
 import com.smartserve.providerapp.ui.layouts.AppTab
 
+private sealed interface HomeStack {
+    object Home : HomeStack
+    data class RequestDetail(val bookingId: String) : HomeStack
+    data class ActiveJob(val bookingId: String) : HomeStack
+}
+
 @Composable
-fun AppScreen(
-    onLogout: () -> Unit,
-) {
+fun AppScreen(onLogout: () -> Unit) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var showUiComponents by remember { mutableIntStateOf(0) }
+    var homeStack by remember { mutableStateOf<HomeStack>(HomeStack.Home) }
 
     val tabs = listOf(
-        AppTab(title = "Home", icon = Icons.Filled.Home),
+        AppTab(title = "Home",     icon = Icons.Filled.Home),
         AppTab(title = "Bookings", icon = Icons.Filled.DateRange),
-        AppTab(title = "Profile", icon = Icons.Filled.Person),
+        AppTab(title = "Profile",  icon = Icons.Filled.Person),
     )
 
     AppLayout(
         currentTabIndex = selectedTabIndex,
-        tabs = tabs,
-        onTabSelected = {
-            selectedTabIndex = it
-            if (it != 2) showUiComponents = 0
+        tabs            = tabs,
+        onTabSelected   = { index ->
+            selectedTabIndex = index
+            if (index != 0) homeStack = HomeStack.Home
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
-                0 -> HomeScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-                1 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-                2 -> if (showUiComponents == 1) {
-                    UiComponentsScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onBack = { showUiComponents = 0 },
+                0 -> when (val stack = homeStack) {
+                    is HomeStack.Home -> HomeScreen(
+                        modifier                  = Modifier.fillMaxSize().padding(innerPadding),
+                        onNavigateToRequestDetail = { bookingId ->
+                            homeStack = HomeStack.RequestDetail(bookingId)
+                        },
                     )
-                } else {
-                    ProfileScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onLogout = onLogout,
-                        onUiComponents = { showUiComponents = 1 },
+                    is HomeStack.RequestDetail -> RequestDetailScreen(
+                        bookingId             = stack.bookingId,
+                        modifier              = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack                = { homeStack = HomeStack.Home },
+                        onNavigateToActiveJob = { bookingId ->
+                            homeStack = HomeStack.ActiveJob(bookingId)
+                        },
+                    )
+                    is HomeStack.ActiveJob -> ActiveJobScreen(
+                        bookingId            = stack.bookingId,
+                        modifier             = Modifier.fillMaxSize().padding(innerPadding),
+                        onNavigateToBookings = {
+                            selectedTabIndex = 1
+                            homeStack = HomeStack.Home
+                        },
                     )
                 }
+                1 -> BookingsScreen(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+                2 -> ProfileScreen(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    onLogout = onLogout,
+                )
             }
         },
     )

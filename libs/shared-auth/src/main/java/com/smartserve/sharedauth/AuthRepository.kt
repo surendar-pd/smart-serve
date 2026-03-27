@@ -52,7 +52,6 @@ class AuthRepository @Inject constructor(
                     .await()
             }
 
-            firebaseUser.reload().await()
             AuthResult.Success(auth.currentUser ?: firebaseUser)
         } catch (e: Exception) {
             AuthResult.Error(e.localizedMessage ?: "Sign up failed")
@@ -96,27 +95,38 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun isProfileSetupComplete(uid: String, role: String): Boolean {
-        return try {
-            if (role == "customer") {
-                val doc = firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(uid).get().await()
-                doc.exists() && doc.getString("homeAddress")?.isNotBlank() == true
-            } else {
-                val doc = firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).get().await()
-                doc.exists() && doc.getString("serviceCategory")?.isNotBlank() == true
-            }
-        } catch (e: Exception) {
-            false
+    return try {
+        if (role == "customer") {
+            val doc = firestore
+                .collection(AuthCollections.CUSTOMER_PROFILES)
+                .document(uid)
+                .get(com.google.firebase.firestore.Source.SERVER)
+                .await()
+            doc.exists() && doc.getString("homeAddress")?.isNotBlank() == true
+        } else {
+            val doc = firestore
+                .collection(AuthCollections.PROVIDER_PROFILES)
+                .document(uid)
+                .get(com.google.firebase.firestore.Source.SERVER)
+                .await()
+            doc.exists() && doc.getString("serviceCategory")?.isNotBlank() == true
         }
+    } catch (e: Exception) {
+        false
     }
+}
 
     suspend fun getUserRole(uid: String): String {
-        return try {
-            val doc = firestore.collection(AuthCollections.USERS).document(uid).get().await()
-            doc.getString("role") ?: "customer"
-        } catch (e: Exception) {
-            "customer"
-        }
+    return try {
+        val doc = firestore.collection(AuthCollections.USERS)
+            .document(uid)
+            .get(com.google.firebase.firestore.Source.SERVER)
+            .await()
+        doc.getString("role") ?: "customer"
+    } catch (e: Exception) {
+        "customer"
     }
+}
 
     suspend fun saveCustomerProfile(
         uid: String,
@@ -222,8 +232,7 @@ class AuthRepository @Inject constructor(
         }
         if (!any) return
         user.updateProfile(builder.build()).await()
-        user.reload().await()
-    }
+       }
 
     /** Role + timestamps only; identity lives on [FirebaseUser]. */
     private suspend fun commitFirestoreUser(uid: String, role: String) {
