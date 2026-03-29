@@ -3,6 +3,7 @@ package com.smartserve.providerapp.ui.app
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.smartserve.sharedauth.AuthCollections
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -14,7 +15,7 @@ import javax.inject.Singleton
 class BookingRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
 ) {
-    private val bookings get() = firestore.collection("bookings")
+    private val bookings get() = firestore.collection(AuthCollections.BOOKINGS)
 
     // Real-time stream: new, pending, active requests for this provider
     fun getIncomingRequests(providerId: String): Flow<List<ServiceRequest>> = callbackFlow {

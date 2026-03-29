@@ -2,6 +2,7 @@ package com.smartserve.providerapp.di
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.smartserve.providerapp.ui.app.BookingRepository
+import com.smartserve.providerapp.ui.app.ProviderServicesRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,4 +20,10 @@ object BookingModule {
     fun provideBookingRepository(
         firestore: FirebaseFirestore,
     ): BookingRepository = BookingRepository(firestore)
+
+    @Provides
+    @Singleton
+    fun provideProviderServicesRepository(
+        firestore: FirebaseFirestore,
+    ): ProviderServicesRepository = ProviderServicesRepository(firestore)
 }

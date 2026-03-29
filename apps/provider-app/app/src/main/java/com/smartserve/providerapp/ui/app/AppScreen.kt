@@ -22,10 +22,17 @@ private sealed interface HomeStack {
     data class ActiveJob(val bookingId: String) : HomeStack
 }
 
+private sealed interface ProfileStack {
+    object Main : ProfileStack
+    object ServicesList : ProfileStack
+    data class ServiceEditor(val serviceId: String?, val sessionKey: Long) : ProfileStack
+}
+
 @Composable
 fun AppScreen(onLogout: () -> Unit) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var homeStack by remember { mutableStateOf<HomeStack>(HomeStack.Home) }
+    var profileStack by remember { mutableStateOf<ProfileStack>(ProfileStack.Main) }
 
     val tabs = listOf(
         AppTab(title = "Home",     icon = Icons.Filled.Home),
@@ -39,6 +46,7 @@ fun AppScreen(onLogout: () -> Unit) {
         onTabSelected   = { index ->
             selectedTabIndex = index
             if (index != 0) homeStack = HomeStack.Home
+            if (index != 2) profileStack = ProfileStack.Main
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
@@ -69,10 +77,30 @@ fun AppScreen(onLogout: () -> Unit) {
                 1 -> BookingsScreen(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
-                2 -> ProfileScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    onLogout = onLogout,
-                )
+                2 -> when (val ps = profileStack) {
+                    ProfileStack.Main -> ProfileScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onLogout = onLogout,
+                        onOpenServices = { profileStack = ProfileStack.ServicesList },
+                    )
+                    ProfileStack.ServicesList -> MyServicesScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { profileStack = ProfileStack.Main },
+                        onAddService = {
+                            profileStack = ProfileStack.ServiceEditor(null, sessionKey = System.nanoTime())
+                        },
+                        onOpenService = { id ->
+                            profileStack = ProfileStack.ServiceEditor(id, sessionKey = System.nanoTime())
+                        },
+                    )
+                    is ProfileStack.ServiceEditor -> ServiceEditorScreen(
+                        serviceId = ps.serviceId,
+                        sessionKey = ps.sessionKey,
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { profileStack = ProfileStack.ServicesList },
+                        onFinished = { profileStack = ProfileStack.ServicesList },
+                    )
+                }
             }
         },
     )

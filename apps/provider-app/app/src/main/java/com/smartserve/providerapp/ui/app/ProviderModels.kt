@@ -41,11 +41,22 @@ data class ServiceRequest(
 
 // ── Firestore deserializer ────────────────────────────────────────────────────
 
+private fun DocumentSnapshot.providerIdResolved(): String? =
+    getString("providerId")?.takeIf { it.isNotBlank() }
+        ?: getDocumentReference("provider")?.id
+        ?: getString("provider_id")?.takeIf { it.isNotBlank() }
+
+private fun DocumentSnapshot.customerIdResolved(): String? =
+    getString("customerId")?.takeIf { it.isNotBlank() }
+        ?: getDocumentReference("customer")?.id
+        ?: getDocumentReference("customer_id")?.id
+        ?: getString("customer_id")?.takeIf { it.isNotBlank() }
+
 fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
     ServiceRequest(
         id                  = id,
-        providerId          = getString("providerId") ?: return null,
-        customerId          = getString("customerId") ?: return null,
+        providerId          = providerIdResolved() ?: return null,
+        customerId          = customerIdResolved() ?: return null,
         customerFirstName   = getString("customerFirstName") ?: "",
         customerInitials    = getString("customerInitials") ?: "",
         serviceType         = getString("serviceType") ?: "",
