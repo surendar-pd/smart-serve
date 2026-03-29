@@ -23,37 +23,33 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.smartserve.sharedauth.AuthCollections
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
+import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedIconButton
+import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
-import kotlinx.coroutines.tasks.await
-
-private data class Category(val label: String, val icon: ImageVector)
 
 private fun categoryIconForLabel(label: String): ImageVector =
     when (label.trim().lowercase()) {
@@ -67,40 +63,17 @@ private fun categoryIconForLabel(label: String): ImageVector =
         else -> Icons.Filled.Build
     }
 
-private data class SmartPick(val name: String, val subtitle: String, val isRebook: Boolean)
-
-private val smartPicks = listOf(
-    SmartPick("Sarah M.", "Home Cleaning · Last booked Jan", isRebook = true),
-    SmartPick("James T.", "Math Tutoring · Last booked Feb", isRebook = true),
-    SmartPick("Sam R.", "Moving & Packing", isRebook = false),
-    SmartPick("Priya N.", "Deep Cleaning Specialist", isRebook = false),
-)
-
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    onNavigateToCategory: (String) -> Unit = {},
+    onNavigateToCategory: (categoryId: String, categoryLabel: String) -> Unit = { _, _ -> },
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
-    onNavigateToProvider: (String) -> Unit = {},
+    onNavigateToProvider: (providerUid: String, providerName: String) -> Unit = { _, _ -> },
+    viewModel: HomeViewModel = hiltViewModel(),
 ) {
+    val state by viewModel.state.collectAsState()
     val greetingName = greetingDisplayName()
-
-    var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        runCatching {
-            FirebaseFirestore.getInstance()
-                .collection(AuthCollections.CATEGORIES)
-                .get()
-                .await()
-                .documents
-                .mapNotNull { it.getString("label")?.trim()?.takeIf { s -> s.isNotBlank() } }
-                .distinct()
-                .sortedBy { it.lowercase() }
-                .map { label -> Category(label = label, icon = categoryIconForLabel(label)) }
-        }.onSuccess { categories = it }
-    }
 
     Column(
         modifier = modifier
@@ -154,18 +127,22 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            categories.forEach { category ->
-                CategoryCard(
-                    label = category.label,
-                    icon = category.icon,
-                    onClick = { onNavigateToCategory(category.label) },
-                )
+        if (state.isLoading && state.categories.isEmpty()) {
+            SharedLoading(modifier = Modifier.fillMaxWidth().height(80.dp))
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                state.categories.forEach { category ->
+                    CategoryCard(
+                        label = category.label,
+                        icon = categoryIconForLabel(category.label),
+                        onClick = { onNavigateToCategory(category.id, category.label) },
+                    )
+                }
             }
         }
 
@@ -175,22 +152,35 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        smartPicks.forEachIndexed { index, pick ->
-            if (index > 0) {
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp),
+        if (state.isLoading && state.topProviders.isEmpty()) {
+            SharedLoading(modifier = Modifier.fillMaxWidth().height(120.dp))
+        } else if (state.topProviders.isEmpty()) {
+            SharedEmptyState(
+                title = "No providers yet",
+                description = "Check back soon for recommendations.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            state.topProviders.forEachIndexed { index, provider ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+                SmartPickRow(
+                    provider = provider,
+                    onNavigateToProvider = onNavigateToProvider,
                 )
             }
-            SmartPickRow(pick = pick, onNavigateToProvider = onNavigateToProvider)
         }
     }
 }
 
 @Composable
 private fun SmartPickRow(
-    pick: SmartPick,
-    onNavigateToProvider: (String) -> Unit,
+    provider: CustomerProviderSummary,
+    onNavigateToProvider: (providerUid: String, providerName: String) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -198,17 +188,21 @@ private fun SmartPickRow(
             .padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SharedAvatar(name = pick.name, size = 44.dp)
+        SharedAvatar(name = provider.displayName, size = 44.dp)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            SharedText(text = pick.name, variant = SharedTextVariant.BodyStrong)
-            SharedText(text = pick.subtitle, variant = SharedTextVariant.Body)
+            SharedText(text = provider.displayName, variant = SharedTextVariant.BodyStrong)
+            val subtitle = if (provider.avgRating > 0)
+                "★ ${"%.1f".format(provider.avgRating)} · ${provider.serviceDescription.take(40)}"
+            else
+                provider.serviceDescription.take(60)
+            SharedText(text = subtitle, variant = SharedTextVariant.Body)
         }
         Spacer(modifier = Modifier.width(8.dp))
         SharedButton(
-            text = if (pick.isRebook) "Rebook" else "Book",
-            onClick = { onNavigateToProvider(pick.name) },
-            variant = if (pick.isRebook) SharedButtonVariant.Outline else SharedButtonVariant.Default,
+            text = "Book",
+            onClick = { onNavigateToProvider(provider.uid, provider.displayName) },
+            variant = SharedButtonVariant.Default,
             modifier = Modifier.height(36.dp),
         )
     }

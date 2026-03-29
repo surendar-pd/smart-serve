@@ -7,47 +7,83 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.sharedui.SharedAvatar
+import com.smartserve.sharedui.SharedEmptyState
+import com.smartserve.sharedui.SharedErrorState
 import com.smartserve.sharedui.SharedListItem
+import com.smartserve.sharedui.SharedLoading
 
 @Composable
 fun CategoryListScreen(
     modifier: Modifier = Modifier,
-    categoryName: String = "Services",
+    categoryId: String = "",
+    categoryLabel: String = "Services",
     onBack: () -> Unit,
-    onProviderClick: (providerName: String) -> Unit = {},
+    onProviderClick: (providerUid: String, providerName: String) -> Unit = { _, _ -> },
+    viewModel: CategoryListViewModel = hiltViewModel(),
 ) {
-    val providers = allProviders.filter { categoryName in it.categories }
+    LaunchedEffect(categoryId) {
+        if (categoryId.isNotBlank()) viewModel.load(categoryId)
+    }
+
+    val state by viewModel.state.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
         CustomerStackHeader(
-            title = categoryName,
+            title = categoryLabel,
             subtitle = "Providers for this category",
             onBack = onBack,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
 
-        LazyColumn {
-            itemsIndexed(providers) { index, provider ->
-                SharedListItem(
-                    title = provider.name,
-                    supportingText = provider.description,
-                    leadingAvatar = { SharedAvatar(name = provider.name, size = 40.dp) },
-                    trailing = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    showDivider = index > 0,
-                    onClick = { onProviderClick(provider.name) },
-                )
+        when (val s = state) {
+            is CategoryListUiState.Loading -> SharedLoading(modifier = Modifier.fillMaxSize())
+            is CategoryListUiState.Error -> SharedErrorState(
+                title = "Couldn't load providers",
+                description = s.message,
+                modifier = Modifier.fillMaxSize(),
+            )
+            is CategoryListUiState.Success -> {
+                if (s.providers.isEmpty()) {
+                    SharedEmptyState(
+                        title = "No providers yet",
+                        description = "No one has listed services in this category yet.",
+                        icon = Icons.Filled.Group,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    LazyColumn {
+                        itemsIndexed(s.providers) { index, provider ->
+                            val rating = if (provider.avgRating > 0)
+                                "★ ${"%.1f".format(provider.avgRating)} · ${provider.totalReviews} reviews"
+                            else provider.serviceDescription.take(60)
+                            SharedListItem(
+                                title = provider.displayName,
+                                supportingText = rating,
+                                leadingAvatar = { SharedAvatar(name = provider.displayName, size = 40.dp) },
+                                trailing = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                showDivider = index > 0,
+                                onClick = { onProviderClick(provider.uid, provider.displayName) },
+                            )
+                        }
+                    }
+                }
             }
         }
     }

@@ -22,11 +22,20 @@ fun AppScreen(
     onLogout: () -> Unit,
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var selectedCategory by remember { mutableStateOf("") }
-    var selectedProvider by remember { mutableStateOf("") }
-    var bookingProvider by remember { mutableStateOf("") }
+
+    // Category navigation
+    var selectedCategoryId by remember { mutableStateOf("") }
+    var selectedCategoryLabel by remember { mutableStateOf("") }
+
+    // Provider navigation
+    var selectedProviderUid by remember { mutableStateOf("") }
+    var selectedProviderName by remember { mutableStateOf("") }
+
+    // Booking navigation
+    var bookingProviderName by remember { mutableStateOf("") }
     var bookingService by remember { mutableStateOf("") }
     var bookingPrice by remember { mutableStateOf("") }
+
     var showProfile by remember { mutableStateOf(false) }
     var cartItems by remember { mutableStateOf(listOf<CartItem>()) }
 
@@ -38,11 +47,13 @@ fun AppScreen(
     )
 
     fun clearHomeStack() {
-        bookingProvider = ""
+        bookingProviderName = ""
         bookingService = ""
         bookingPrice = ""
-        selectedProvider = ""
-        selectedCategory = ""
+        selectedProviderUid = ""
+        selectedProviderName = ""
+        selectedCategoryId = ""
+        selectedCategoryLabel = ""
         showProfile = false
     }
 
@@ -56,40 +67,45 @@ fun AppScreen(
         content = { innerPadding ->
             when (selectedTabIndex) {
                 0 -> when {
-                    bookingProvider.isNotEmpty() -> BookingScreen(
+                    bookingProviderName.isNotEmpty() -> BookingScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        providerName = bookingProvider,
+                        providerName = bookingProviderName,
                         serviceName = bookingService,
                         price = bookingPrice,
                         onBack = {
-                            bookingProvider = ""
+                            bookingProviderName = ""
                             bookingService = ""
                             bookingPrice = ""
                         },
                         onAddToCart = { item ->
                             cartItems = cartItems + item
-                            bookingProvider = ""
+                            bookingProviderName = ""
                             bookingService = ""
                             bookingPrice = ""
-                            selectedProvider = ""
+                            selectedProviderUid = ""
                             selectedTabIndex = 2
                         },
                     )
-                    selectedProvider.isNotEmpty() -> ServiceListScreen(
+                    selectedProviderUid.isNotEmpty() -> ServiceListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        providerName = selectedProvider,
-                        onBack = { selectedProvider = "" },
+                        providerUid = selectedProviderUid,
+                        providerName = selectedProviderName,
+                        onBack = { selectedProviderUid = ""; selectedProviderName = "" },
                         onSelectService = { prov, svc, price ->
-                            bookingProvider = prov
+                            bookingProviderName = prov
                             bookingService = svc
                             bookingPrice = price
                         },
                     )
-                    selectedCategory.isNotEmpty() -> CategoryListScreen(
+                    selectedCategoryId.isNotEmpty() -> CategoryListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        categoryName = selectedCategory,
-                        onBack = { selectedCategory = "" },
-                        onProviderClick = { selectedProvider = it },
+                        categoryId = selectedCategoryId,
+                        categoryLabel = selectedCategoryLabel,
+                        onBack = { selectedCategoryId = ""; selectedCategoryLabel = "" },
+                        onProviderClick = { uid, name ->
+                            selectedProviderUid = uid
+                            selectedProviderName = name
+                        },
                     )
                     showProfile -> ProfileScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -98,16 +114,23 @@ fun AppScreen(
                     )
                     else -> HomeScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onNavigateToCategory = { selectedCategory = it },
+                        onNavigateToCategory = { id, label ->
+                            selectedCategoryId = id
+                            selectedCategoryLabel = label
+                        },
                         onNavigateToProfile = { showProfile = true },
                         onNavigateToSearch = { selectedTabIndex = 1 },
-                        onNavigateToProvider = { selectedProvider = it },
+                        onNavigateToProvider = { uid, name ->
+                            selectedProviderUid = uid
+                            selectedProviderName = name
+                        },
                     )
                 }
                 1 -> SearchScreen(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    onProviderClick = {
-                        selectedProvider = it
+                    onProviderClick = { uid, name ->
+                        selectedProviderUid = uid
+                        selectedProviderName = name
                         selectedTabIndex = 0
                     },
                 )
