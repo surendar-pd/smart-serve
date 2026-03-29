@@ -19,12 +19,14 @@ fun SharedIconButton(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
+    enabled: Boolean = true,
     /** When null, uses [MaterialTheme.colorScheme.onSurfaceVariant]. */
     contentColor: Color? = null,
 ) {
     IconButton(
         onClick = onClick,
         modifier = modifier,
+        enabled = enabled,
         colors = IconButtonDefaults.iconButtonColors(
             contentColor = contentColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
         ),

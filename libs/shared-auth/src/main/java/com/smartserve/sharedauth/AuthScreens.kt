@@ -33,7 +33,9 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -68,7 +70,6 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
-import com.smartserve.sharedui.SharedChip
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedDropdown
 import com.smartserve.sharedui.SharedDividerWithCenterLabel
@@ -616,11 +617,21 @@ fun ProviderProfileSetupScreen(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? -> viewModel.onPhotoSelected(uri) }
 
-    val categories = listOf("home" to "Home Services", "education" to "Education", "studentLife" to "Student Life Services")
-    val categoryLabels = categories.map { it.second }
-    val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val addNewCategoryLabel = "Add new category…"
+    val categoryLabels = remember(state.categoryOptions) {
+        state.categoryOptions.map { it.label } + addNewCategoryLabel
+    }
 
     var categoryExpanded by remember { mutableStateOf(false) }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryName by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        viewModel.addCategoryCompleted.collect {
+            showAddCategoryDialog = false
+            newCategoryName = ""
+        }
+    }
 
     AuthScaffoldColumn { snackbarHostState ->
         AuthErrorSnackbarLaunchedEffect(
@@ -679,16 +690,39 @@ fun ProviderProfileSetupScreen(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        SharedDropdown(
-            expanded = categoryExpanded,
-            onExpandedChange = { categoryExpanded = it },
-            options = categoryLabels,
-            selectedOption = categories.find { it.first == state.serviceCategory }?.second,
-            onOptionSelected = { label ->
-                categories.find { it.second == label }?.first?.let(viewModel::onCategoryChange)
-            },
-            label = "Select category",
-        )
+        if (state.categoriesLoading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(vertical = 8.dp),
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                )
+                SharedText(
+                    text = "Loading categories…",
+                    variant = SharedTextVariant.Body,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            SharedDropdown(
+                expanded = categoryExpanded,
+                onExpandedChange = { categoryExpanded = it },
+                options = categoryLabels,
+                selectedOption = state.categoryOptions.find { it.id == state.serviceCategory }?.label,
+                onOptionSelected = { label ->
+                    if (label == addNewCategoryLabel) {
+                        showAddCategoryDialog = true
+                    } else {
+                        state.categoryOptions.find { it.label == label }
+                            ?.let { viewModel.onCategoryChange(it.id) }
+                    }
+                },
+                label = "Select category",
+            )
+        }
 
         Spacer(Modifier.height(12.dp))
 
@@ -732,58 +766,12 @@ fun ProviderProfileSetupScreen(
             onRadiusChanged = viewModel::onRadiusChange
         )
 
-        Spacer(Modifier.height(12.dp))
-
-        SharedText(text = "Availability *", variant = SharedTextVariant.Label)
-        Column(
-    modifier = Modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(4.dp),
-) {
-    val rows = daysOfWeek.chunked(4)
-    rows.forEach { rowDays ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            rowDays.forEach { day ->
-                val selected = day in state.availabilityDays
-                SharedChip(
-                    label = day,
-                    selected = selected,
-                    onSelectedChange = { newSelected ->
-                        val updated = when {
-                            newSelected && day !in state.availabilityDays ->
-                                state.availabilityDays + day
-                            !newSelected ->
-                                state.availabilityDays - day
-                            else -> state.availabilityDays
-                        }
-                        viewModel.onAvailabilityDaysChange(updated)
-                    },
-                )
-            }
-        }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TimePickerTextField(
-                label = "From",
-                value = state.availabilityStart,
-                onChange = viewModel::onAvailabilityStartChange,
-                modifier = Modifier.weight(1f)
-            )
-            TimePickerTextField(
-                label = "To",
-                value = state.availabilityEnd,
-                onChange = viewModel::onAvailabilityEndChange,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        SharedText(
+            text = "You can set hours for each service listing in the provider app.",
+            variant = SharedTextVariant.Caption,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 12.dp),
+        )
 
         Spacer(Modifier.height(20.dp))
 
@@ -800,6 +788,44 @@ fun ProviderProfileSetupScreen(
             }
         )
     }
+
+    if (showAddCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!state.isSavingCategory) {
+                    showAddCategoryDialog = false
+                    newCategoryName = ""
+                }
+            },
+            title = { SharedText(text = "New category", variant = SharedTextVariant.Subtitle) },
+            text = {
+                SharedTextField(
+                    value = newCategoryName,
+                    onValueChange = { newCategoryName = it },
+                    label = "Category name",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                SharedButton(
+                    text = "Add",
+                    onClick = { viewModel.addServiceCategory(newCategoryName) },
+                    enabled = newCategoryName.trim().isNotBlank() && !state.isSavingCategory,
+                    loading = state.isSavingCategory,
+                )
+            },
+            dismissButton = {
+                SharedButton(
+                    text = "Cancel",
+                    onClick = {
+                        showAddCategoryDialog = false
+                        newCategoryName = ""
+                    },
+                    variant = SharedButtonVariant.Outline,
+                    enabled = !state.isSavingCategory,
+                )
+            },
+        )
     }
 }
 
@@ -962,22 +988,5 @@ private fun ServiceRadiusMapPicker(
         valueRange = 1f..50f,
         steps = 48,
         modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-private fun TimePickerTextField(
-    label: String,
-    value: String,
-    onChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    SharedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = label,
-        placeholder = "HH:mm",
-        modifier = modifier,
-        singleLine = true,
     )
 }

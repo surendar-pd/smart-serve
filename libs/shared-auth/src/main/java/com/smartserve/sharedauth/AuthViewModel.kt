@@ -338,14 +338,15 @@ data class ProviderProfileUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val photoUri: Uri? = null,
+    /** Firestore `categories` document id. */
     val serviceCategory: String = "",
+    val categoryOptions: List<ServiceCategoryOption> = emptyList(),
+    val categoriesLoading: Boolean = true,
+    val isSavingCategory: Boolean = false,
     val serviceDescription: String = "",
     val hourlyRate: String = "",
     val serviceCenter: GeoPoint? = null,
     val serviceRadiusKm: Double = 10.0,
-    val availabilityDays: List<String> = emptyList(),
-    val availabilityStart: String = "09:00",
-    val availabilityEnd: String = "18:00",
 )
 
 @HiltViewModel
@@ -362,16 +363,63 @@ class ProviderProfileViewModel @Inject constructor(
     )
     val onboardingCompleted: SharedFlow<Unit> = _onboardingCompleted.asSharedFlow()
 
+    private val _addCategoryCompleted = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    /** Emitted when [addServiceCategory] succeeds (e.g. to close the add-category dialog). */
+    val addCategoryCompleted: SharedFlow<Unit> = _addCategoryCompleted.asSharedFlow()
+
+    init {
+        loadCategories()
+    }
+
+    fun loadCategories() = viewModelScope.launch {
+        _state.update { it.copy(categoriesLoading = true) }
+        repository.listServiceCategories()
+            .onSuccess { list ->
+                _state.update { it.copy(categoryOptions = list, categoriesLoading = false) }
+            }
+            .onFailure { e ->
+                _state.update {
+                    it.copy(
+                        categoriesLoading = false,
+                        errorMessage = e.localizedMessage ?: "Could not load categories",
+                    )
+                }
+            }
+    }
+
+    fun addServiceCategory(label: String) = viewModelScope.launch {
+        _state.update { it.copy(isSavingCategory = true, errorMessage = null) }
+        repository.addServiceCategory(label)
+            .onSuccess { option ->
+                val merged = (_state.value.categoryOptions + option).sortedBy { o -> o.label.lowercase() }
+                _state.update {
+                    it.copy(
+                        categoryOptions = merged,
+                        serviceCategory = option.id,
+                        isSavingCategory = false,
+                    )
+                }
+                _addCategoryCompleted.emit(Unit)
+            }
+            .onFailure { e ->
+                _state.update {
+                    it.copy(
+                        isSavingCategory = false,
+                        errorMessage = e.localizedMessage ?: "Could not add category",
+                    )
+                }
+            }
+    }
+
     fun onPhotoSelected(uri: Uri?) = _state.update { it.copy(photoUri = uri) }
     fun onCategoryChange(v: String) = _state.update { it.copy(serviceCategory = v) }
     fun onDescriptionChange(v: String) = _state.update { it.copy(serviceDescription = v) }
     fun onHourlyRateChange(v: String) = _state.update { it.copy(hourlyRate = v) }
     fun onServiceCenterChange(gp: GeoPoint) = _state.update { it.copy(serviceCenter = gp) }
     fun onRadiusChange(r: Double) = _state.update { it.copy(serviceRadiusKm = r) }
-    fun onAvailabilityDaysChange(days: List<String>) =
-        _state.update { it.copy(availabilityDays = days) }
-    fun onAvailabilityStartChange(v: String) = _state.update { it.copy(availabilityStart = v) }
-    fun onAvailabilityEndChange(v: String) = _state.update { it.copy(availabilityEnd = v) }
     fun clearError() = _state.update { it.copy(errorMessage = null) }
 
     fun completeOnboarding(uid: String, displayName: String, phone: String) =
@@ -391,10 +439,6 @@ class ProviderProfileViewModel @Inject constructor(
                     _state.update { it.copy(errorMessage = "Enter a valid hourly rate") }
                     return@launch
                 }
-                s.availabilityDays.isEmpty() -> {
-                    _state.update { it.copy(errorMessage = "Select at least one availability day") }
-                    return@launch
-                }
             }
             _state.update { it.copy(isLoading = true) }
             repository.saveProviderProfile(
@@ -407,9 +451,6 @@ class ProviderProfileViewModel @Inject constructor(
                 hourlyRate         = s.hourlyRate.toDouble(),
                 serviceCenter      = s.serviceCenter,
                 serviceRadiusKm    = s.serviceRadiusKm,
-                availabilityDays   = s.availabilityDays,
-                availabilityStart  = s.availabilityStart,
-                availabilityEnd    = s.availabilityEnd,
             ).onSuccess {
                 Log.d(TAG, "saveProviderProfile SUCCESS")
                 _state.update { it.copy(isLoading = false) }

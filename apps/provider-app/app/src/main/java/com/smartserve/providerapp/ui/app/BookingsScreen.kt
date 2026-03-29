@@ -40,8 +40,12 @@ fun BookingsScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier.fillMaxSize()) {
+        ProviderTabHeader(
+            title = "Bookings",
+            subtitle = "Upcoming and completed work",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
 
-        // ── Tab row ───────────────────────────────────────────────────────────
         SharedTabs(
             tabCount         = tabTitles.size,
             selectedTabIndex = selectedTab,

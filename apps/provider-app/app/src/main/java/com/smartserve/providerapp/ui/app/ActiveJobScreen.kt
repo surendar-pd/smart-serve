@@ -44,7 +44,6 @@ import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedScaffold
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
-import com.smartserve.sharedui.SharedTopAppBar
 
 @Composable
 fun ActiveJobScreen(
@@ -68,7 +67,14 @@ fun ActiveJobScreen(
 
     SharedScaffold(
         modifier     = modifier,
-        topBar       = { SharedTopAppBar(title = "Active Job", onBack = onNavigateToBookings) },
+        topBar       = {
+            ProviderStackHeader(
+                title = "Active job",
+                subtitle = "Job in progress",
+                onBack = onNavigateToBookings,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         when {

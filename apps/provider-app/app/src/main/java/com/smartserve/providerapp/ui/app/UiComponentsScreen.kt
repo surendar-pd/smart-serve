@@ -56,7 +56,6 @@ import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextFieldVariant
 import com.smartserve.sharedui.SharedTextVariant
-import com.smartserve.sharedui.SharedTopAppBar
 
 @Composable
 fun UiComponentsScreen(
@@ -77,7 +76,12 @@ fun UiComponentsScreen(
   var selectedRadio by remember { mutableStateOf(0) }
 
   Column(modifier = modifier.fillMaxSize()) {
-    SharedTopAppBar(title = "UI components", onBack = onBack)
+    ProviderStackHeader(
+      title = "UI components",
+      subtitle = "Shared UI gallery for testing",
+      onBack = onBack,
+      modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+    )
 
     Column(
       modifier = Modifier
