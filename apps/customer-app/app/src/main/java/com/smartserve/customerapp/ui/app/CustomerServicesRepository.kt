@@ -91,14 +91,13 @@ class CustomerServicesRepository @Inject constructor(
 
     /**
      * Returns all services for the search screen.
-     * Uses a single-field filter so no composite index is needed.
+     * Fetches all services and filters isActive in-memory so docs without the field
+     * (e.g. written before isActive was added) are also included.
      */
     suspend fun getAllActiveServices(): List<CustomerServiceListing> {
         return try {
-            // Single-field filter → auto-indexed by Firestore
-            val snap = services
-                .whereEqualTo("isActive", true)
-                .get().await()
+            // No filter → no index required; missing isActive treated as active
+            val snap = services.get().await()
 
             Log.d(TAG, "getAllActiveServices: ${snap.size()} docs")
 
@@ -110,7 +109,9 @@ class CustomerServicesRepository @Inject constructor(
                 uid to (profiles.document(uid).get().await().getString("displayName") ?: "")
             }
 
-            snap.documents.mapNotNull { doc ->
+            snap.documents
+                .filter { it.getBoolean("isActive") != false }   // treat missing as active
+                .mapNotNull { doc ->
                 val providerUid = doc.getDocumentReference("provider")?.id
                     ?: return@mapNotNull null
                 val title = doc.getString("title")?.trim().orEmpty()
@@ -158,7 +159,10 @@ class CustomerServicesRepository @Inject constructor(
 
 private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSummary(): CustomerProviderSummary? {
     val uid = id.ifBlank { return null }
-    val displayName = getString("displayName")?.trim().orEmpty().ifBlank { return null }
+    // Use email prefix or a short ID as fallback so providers with no display name still appear
+    val displayName = getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+        ?: getString("email")?.substringBefore("@")?.takeIf { it.isNotBlank() }
+        ?: "Provider ${uid.take(6)}"
     return CustomerProviderSummary(
         uid = uid,
         displayName = displayName,
