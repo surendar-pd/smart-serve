@@ -231,7 +231,7 @@ private fun CategoryCard(
         onClick = onClick,
         contentPadding = PaddingValues(vertical = 12.dp, horizontal = 8.dp),
         // Fixed size so every card is identical regardless of label length
-        modifier = Modifier.size(width = 82.dp, height = 84.dp),
+        modifier = Modifier.size(width = 82.dp, height = 96.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -248,7 +248,7 @@ private fun CategoryCard(
             androidx.compose.material3.Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
