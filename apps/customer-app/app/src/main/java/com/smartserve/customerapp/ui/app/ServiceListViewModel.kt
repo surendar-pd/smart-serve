@@ -25,8 +25,14 @@ class ServiceListViewModel @Inject constructor(
     fun load(providerUid: String, providerName: String) {
         _state.value = ServiceListUiState.Loading
         viewModelScope.launch {
-            val services = repo.getServicesForProvider(providerUid, providerName)
-            _state.value = ServiceListUiState.Success(services)
+            try {
+                val services = repo.getServicesForProvider(providerUid, providerName)
+                _state.value = ServiceListUiState.Success(services)
+            } catch (e: Exception) {
+                _state.value = ServiceListUiState.Error(
+                    e.localizedMessage ?: "Could not load services"
+                )
+            }
         }
     }
 }

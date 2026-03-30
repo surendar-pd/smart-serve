@@ -25,11 +25,13 @@ class CategoryListViewModel @Inject constructor(
     fun load(categoryId: String) {
         _state.value = CategoryListUiState.Loading
         viewModelScope.launch {
-            val providers = repo.getProvidersByCategory(categoryId)
-            _state.value = if (providers.isEmpty()) {
-                CategoryListUiState.Success(emptyList())
-            } else {
-                CategoryListUiState.Success(providers)
+            try {
+                val providers = repo.getProvidersByCategory(categoryId)
+                _state.value = CategoryListUiState.Success(providers)
+            } catch (e: Exception) {
+                _state.value = CategoryListUiState.Error(
+                    e.localizedMessage ?: "Could not load providers"
+                )
             }
         }
     }
