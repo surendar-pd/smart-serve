@@ -15,7 +15,8 @@ import javax.inject.Inject
 
 data class BookingsUiState(
     val isLoading: Boolean = true,
-    val pastBookings: List<ServiceRequest> = emptyList(),
+    val upcomingBookings: List<ServiceRequest> = emptyList(),  // new/pending/active
+    val pastBookings: List<ServiceRequest> = emptyList(),      // completed/declined
     val weekEarnings: Int = 0,
     val monthEarnings: Int = 0,
     val errorMessage: String? = null,
@@ -35,23 +36,38 @@ class BookingsViewModel @Inject constructor(
     }
 
     private fun loadBookings() {
-        val uid = auth.currentUser?.uid ?: return
+        val uid = auth.currentUser?.uid ?: run {
+            _uiState.update { it.copy(isLoading = false) }
+            return
+        }
+
+        // ── Load upcoming: new, pending, active ───────────────────────────────
+        viewModelScope.launch {
+            repository.getIncomingRequests(uid)
+                .catch { e ->
+                    _uiState.update { it.copy(errorMessage = e.localizedMessage) }
+                }
+                .collect { list ->
+                    _uiState.update { it.copy(
+                        isLoading        = false,
+                        upcomingBookings = list,
+                    )}
+                }
+        }
+
+        // ── Load past: completed, declined ────────────────────────────────────
         viewModelScope.launch {
             repository.getPastBookings(uid)
                 .catch { e ->
-                    _uiState.update {
-                        it.copy(isLoading = false, errorMessage = e.localizedMessage)
-                    }
+                    _uiState.update { it.copy(isLoading = false, errorMessage = e.localizedMessage) }
                 }
                 .collect { list ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading     = false,
-                            pastBookings  = list,
-                            weekEarnings  = computeWeekEarnings(list),
-                            monthEarnings = computeMonthEarnings(list),
-                        )
-                    }
+                    _uiState.update { it.copy(
+                        isLoading     = false,
+                        pastBookings  = list,
+                        weekEarnings  = computeWeekEarnings(list),
+                        monthEarnings = computeMonthEarnings(list),
+                    )}
                 }
         }
     }

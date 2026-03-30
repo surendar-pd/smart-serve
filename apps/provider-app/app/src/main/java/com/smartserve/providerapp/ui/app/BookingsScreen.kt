@@ -60,41 +60,60 @@ fun BookingsScreen(
                 contentAlignment = Alignment.Center,
             ) { SharedLoading() }
 
-            selectedTab == 0 -> SharedEmptyState(title = "No upcoming bookings")
+            state.errorMessage != null -> Box(
+                modifier         = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) { SharedText(text = state.errorMessage!!, variant = SharedTextVariant.Body) }
 
-            else -> Column(modifier = Modifier.fillMaxSize()) {
-
-                // ── Earnings summary ──────────────────────────────────────────
-                SharedCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                ) {
-                    Row(
-                        modifier              = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            SharedText(text = "This Week",           variant = SharedTextVariant.Caption)
-                            SharedText(text = "$${state.weekEarnings}",  variant = SharedTextVariant.Title)
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            SharedText(text = "This Month",           variant = SharedTextVariant.Caption)
-                            SharedText(text = "$${state.monthEarnings}", variant = SharedTextVariant.Title)
-                        }
-                    }
-                }
-
-                // ── Past bookings list ────────────────────────────────────────
-                if (state.pastBookings.isEmpty()) {
-                    SharedEmptyState(title = "No completed bookings yet")
+            selectedTab == 0 -> {
+                if (state.upcomingBookings.isEmpty()) {
+                    SharedEmptyState(title = "No upcoming bookings")
                 } else {
                     LazyColumn(
                         modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        items(state.pastBookings, key = { it.id }) { booking ->
+                        items(state.upcomingBookings, key = { it.id }) { booking ->
                             PastBookingCard(booking = booking)
+                        }
+                    }
+                }
+            }
+
+            else -> {
+                val completed = state.pastBookings.filter {
+                    it.status == RequestStatus.COMPLETED || it.status == RequestStatus.DECLINED
+                }
+                if (completed.isEmpty()) {
+                    SharedEmptyState(title = "No completed bookings yet")
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        SharedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            Row(
+                                modifier              = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    SharedText(text = "This Week",              variant = SharedTextVariant.Caption)
+                                    SharedText(text = "$${state.weekEarnings}", variant = SharedTextVariant.Title)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    SharedText(text = "This Month",              variant = SharedTextVariant.Caption)
+                                    SharedText(text = "$${state.monthEarnings}", variant = SharedTextVariant.Title)
+                                }
+                            }
+                        }
+                        LazyColumn(
+                            modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(completed, key = { it.id }) { booking ->
+                                PastBookingCard(booking = booking)
+                            }
                         }
                     }
                 }
@@ -112,9 +131,19 @@ private fun PastBookingCard(booking: ServiceRequest) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically,
             ) {
-                SharedText(text = booking.customerFirstName, variant = SharedTextVariant.BodyStrong)
                 SharedText(
-                    text    = if (booking.status == RequestStatus.COMPLETED) "Completed" else "Declined",
+                    text    = booking.customerFirstName,
+                    variant = SharedTextVariant.BodyStrong,
+                )
+                val statusLabel = when (booking.status) {
+                    RequestStatus.COMPLETED -> "Completed"
+                    RequestStatus.DECLINED  -> "Declined"
+                    RequestStatus.ACTIVE    -> "Active"
+                    RequestStatus.PENDING   -> "Pending"
+                    RequestStatus.NEW       -> "New"
+                }
+                SharedText(
+                    text    = statusLabel,
                     variant = SharedTextVariant.Caption,
                 )
             }
@@ -123,9 +152,13 @@ private fun PastBookingCard(booking: ServiceRequest) {
                 text    = "${booking.date} · ${booking.neighborhood}",
                 variant = SharedTextVariant.Caption,
             )
-            if (booking.earnings > 0) {
+            // Only show earnings for completed bookings
+            if (booking.earnings > 0 && booking.status == RequestStatus.COMPLETED) {
                 Spacer(Modifier.height(4.dp))
-                SharedText(text = "Earned: $${booking.earnings}", variant = SharedTextVariant.BodyStrong)
+                SharedText(
+                    text    = "Earned: $${booking.earnings}",
+                    variant = SharedTextVariant.BodyStrong,
+                )
             }
             if (booking.customerRating != null) {
                 Spacer(Modifier.height(4.dp))

@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel          // ← ADD this import
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedLoading
@@ -39,8 +40,15 @@ fun RequestDetailScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onNavigateToActiveJob: (String) -> Unit,
-    viewModel: RequestDetailViewModel = hiltViewModel(),
+    onNavigateToChat: (String) -> Unit,
 ) {
+    // ── Get the AssistedFactory via Hilt, then build VM with bookingId ───────
+    val holder: RequestDetailAssistedFactoryHolder = hiltViewModel()
+    val viewModel: RequestDetailViewModel = viewModel(
+        key     = "RequestDetail_$bookingId",
+        factory = provideRequestDetailViewModel(holder.factory, bookingId),
+    )
+
     val state by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -52,6 +60,7 @@ fun RequestDetailScreen(
         }
     }
 
+    // ── rest of your UI is UNCHANGED from here down ───────────────────────────
     Column(modifier = modifier.fillMaxSize()) {
         ProviderStackHeader(
             title = "Request details",
@@ -81,7 +90,6 @@ fun RequestDetailScreen(
                             .verticalScroll(rememberScrollState())
                             .padding(16.dp),
                     ) {
-                        // ── Map placeholder ───────────────────────────────────
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -103,9 +111,7 @@ fun RequestDetailScreen(
                         }
 
                         Spacer(Modifier.height(16.dp))
-
                         SharedText(text = req.serviceType, variant = SharedTextVariant.BodyStrong)
-
                         Spacer(Modifier.height(12.dp))
 
                         DetailRow(label = "Customer", value = req.customerFirstName)
@@ -145,6 +151,16 @@ fun RequestDetailScreen(
                             enabled  = !state.isActing,
                         )
 
+                        // ── Show chat button for PENDING and ACTIVE requests ─────────────────
+                        if (state.request?.status in listOf(RequestStatus.PENDING, RequestStatus.ACTIVE)) {
+                            Spacer(Modifier.height(8.dp))
+                            SharedButton(
+                                text     = "Open Chat",
+                                onClick  = { onNavigateToChat(state.request!!.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
                         Spacer(Modifier.height(8.dp))
 
                         SharedText(
@@ -159,7 +175,6 @@ fun RequestDetailScreen(
                         }
                     }
 
-                    // ── Full-screen loading overlay while Accept/Decline in-flight ──
                     if (state.isActing) {
                         Box(
                             modifier = Modifier

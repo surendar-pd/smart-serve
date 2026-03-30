@@ -1,9 +1,11 @@
 package com.smartserve.providerapp.ui.app
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +15,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class RequestDetailUiState(
     val request: ServiceRequest? = null,
@@ -27,14 +28,18 @@ sealed interface RequestDetailEvent {
     object NavigateBack : RequestDetailEvent
 }
 
-@HiltViewModel
-class RequestDetailViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+// ── Change 1: AssistedInject instead of @HiltViewModel ────────────────────────
+class RequestDetailViewModel @AssistedInject constructor(
+    @Assisted private val bookingId: String,   // ← injected directly, no SavedStateHandle
     private val repository: BookingRepository,
     private val auth: FirebaseAuth,
 ) : ViewModel() {
 
-    private val bookingId: String = checkNotNull(savedStateHandle["bookingId"])
+    // ── Change 2: Declare an AssistedFactory ──────────────────────────────────
+    @AssistedFactory
+    interface Factory {
+        fun create(bookingId: String): RequestDetailViewModel
+    }
 
     private val _uiState = MutableStateFlow(RequestDetailUiState())
     val uiState: StateFlow<RequestDetailUiState> = _uiState.asStateFlow()
@@ -67,9 +72,7 @@ class RequestDetailViewModel @Inject constructor(
         runCatching { repository.acceptRequest(bookingId) }
             .onSuccess { _events.send(RequestDetailEvent.NavigateToActive(bookingId)) }
             .onFailure { e ->
-                _uiState.update {
-                    it.copy(isActing = false, errorMessage = e.localizedMessage)
-                }
+                _uiState.update { it.copy(isActing = false, errorMessage = e.localizedMessage) }
             }
     }
 
@@ -78,9 +81,7 @@ class RequestDetailViewModel @Inject constructor(
         runCatching { repository.declineRequest(bookingId) }
             .onSuccess { _events.send(RequestDetailEvent.NavigateBack) }
             .onFailure { e ->
-                _uiState.update {
-                    it.copy(isActing = false, errorMessage = e.localizedMessage)
-                }
+                _uiState.update { it.copy(isActing = false, errorMessage = e.localizedMessage) }
             }
     }
 }

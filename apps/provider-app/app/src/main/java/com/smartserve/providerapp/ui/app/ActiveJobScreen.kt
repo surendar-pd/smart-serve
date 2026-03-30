@@ -44,14 +44,22 @@ import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedScaffold
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
+import com.smartserve.sharedui.SharedTopAppBar
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun ActiveJobScreen(
     bookingId: String,
     modifier: Modifier = Modifier,
     onNavigateToBookings: () -> Unit,
-    viewModel: ActiveJobViewModel = hiltViewModel(),
+    onNavigateToChat: (String) -> Unit,
 ) {
+    // ── Build VM via assisted inject, scoped to this bookingId ───────────────
+    val holder: ActiveJobAssistedFactoryHolder = hiltViewModel()
+    val viewModel: ActiveJobViewModel = viewModel(
+        key     = "ActiveJob_$bookingId",
+        factory = provideActiveJobViewModel(holder.factory, bookingId),
+    )
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -196,6 +204,17 @@ fun ActiveJobScreen(
                         loading  = state.isMarkingDone,
                         enabled  = !state.isMarkingDone,
                     )
+
+
+
+                    // Add a "Chat with Customer" button in ActiveJobScreen:
+
+                    SharedButton(
+                        text     = "Chat with Customer",
+                        onClick  = { onNavigateToChat(bookingId) },
+                        modifier = Modifier.fillMaxWidth(),
+                        variant  = SharedButtonVariant.Secondary,
+                )
                 }
             }
         }

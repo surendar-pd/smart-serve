@@ -20,6 +20,7 @@ private sealed interface HomeStack {
     object Home : HomeStack
     data class RequestDetail(val bookingId: String) : HomeStack
     data class ActiveJob(val bookingId: String) : HomeStack
+    data class Chat(val bookingId: String, val returnTo: HomeStack) : HomeStack
 }
 
 private sealed interface ProfileStack {
@@ -64,6 +65,12 @@ fun AppScreen(onLogout: () -> Unit) {
                         onNavigateToActiveJob = { bookingId ->
                             homeStack = HomeStack.ActiveJob(bookingId)
                         },
+                        onNavigateToChat      = { bookingId ->
+                            homeStack = HomeStack.Chat(
+                                bookingId = bookingId,
+                                returnTo  = stack,
+                            )
+                        },
                     )
                     is HomeStack.ActiveJob -> ActiveJobScreen(
                         bookingId            = stack.bookingId,
@@ -72,35 +79,24 @@ fun AppScreen(onLogout: () -> Unit) {
                             selectedTabIndex = 1
                             homeStack = HomeStack.Home
                         },
+                        onNavigateToChat     = { bookingId ->
+                            homeStack = HomeStack.Chat(
+                                bookingId = bookingId,
+                                returnTo  = stack,
+                            )
+                        },
+                    )
+                    is HomeStack.Chat -> ChatScreen(
+                        bookingId = stack.bookingId,
+                        onBack    = { homeStack = stack.returnTo },
+                        bottomPadding = innerPadding.calculateBottomPadding(),
+                        topPadding     = innerPadding.calculateTopPadding(),
                     )
                 }
                 1 -> BookingsScreen(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
-                2 -> when (val ps = profileStack) {
-                    ProfileStack.Main -> ProfileScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onLogout = onLogout,
-                        onOpenServices = { profileStack = ProfileStack.ServicesList },
-                    )
-                    ProfileStack.ServicesList -> MyServicesScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onBack = { profileStack = ProfileStack.Main },
-                        onAddService = {
-                            profileStack = ProfileStack.ServiceEditor(null, sessionKey = System.nanoTime())
-                        },
-                        onOpenService = { id ->
-                            profileStack = ProfileStack.ServiceEditor(id, sessionKey = System.nanoTime())
-                        },
-                    )
-                    is ProfileStack.ServiceEditor -> ServiceEditorScreen(
-                        serviceId = ps.serviceId,
-                        sessionKey = ps.sessionKey,
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onBack = { profileStack = ProfileStack.ServicesList },
-                        onFinished = { profileStack = ProfileStack.ServicesList },
-                    )
-                }
+                2 -> ProfileScreen(onLogout = onLogout)
             }
         },
     )
