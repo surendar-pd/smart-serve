@@ -1,6 +1,7 @@
 package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -127,32 +129,18 @@ fun HomeScreen(
         if (state.isLoading && state.categories.isEmpty()) {
             SharedLoading(modifier = Modifier.fillMaxWidth().height(80.dp))
         } else {
-            // Uniform grid: divide available width evenly across columns (max 4 per row)
-            androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val columns = 4
-                val spacing = 8.dp
-                val cardWidth: Dp = (maxWidth - spacing * (columns - 1)) / columns
-                val rows = state.categories.chunked(columns)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    rows.forEach { rowCategories ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(spacing),
-                        ) {
-                            rowCategories.forEach { category ->
-                                CategoryCard(
-                                    label = category.label,
-                                    icon = categoryIconForLabel(category.label),
-                                    onClick = { onNavigateToCategory(category.id, category.label) },
-                                    width = cardWidth,
-                                )
-                            }
-                            // Fill remaining slots in the last row with invisible spacers
-                            repeat(columns - rowCategories.size) {
-                                Spacer(modifier = Modifier.width(cardWidth))
-                            }
-                        }
-                    }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.categories.forEach { category ->
+                    CategoryCard(
+                        label = category.label,
+                        icon = categoryIconForLabel(category.label),
+                        onClick = { onNavigateToCategory(category.id, category.label) },
+                    )
                 }
             }
         }
@@ -238,17 +226,17 @@ private fun CategoryCard(
     label: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    width: Dp = 80.dp,
 ) {
     SharedCard(
         onClick = onClick,
         contentPadding = PaddingValues(vertical = 12.dp, horizontal = 8.dp),
-        modifier = Modifier.width(width),
+        // Fixed size so every card is identical regardless of label length
+        modifier = Modifier.size(width = 82.dp, height = 84.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(
                 imageVector = icon,
@@ -256,7 +244,15 @@ private fun CategoryCard(
                 modifier = Modifier.size(28.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
-            SharedText(text = label, variant = SharedTextVariant.Caption)
+            Spacer(modifier = Modifier.height(6.dp))
+            androidx.compose.material3.Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
