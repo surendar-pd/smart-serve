@@ -234,7 +234,7 @@ private fun CategoryCard(
         modifier = Modifier.size(width = 82.dp, height = 96.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
