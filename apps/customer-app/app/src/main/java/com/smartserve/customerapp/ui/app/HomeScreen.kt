@@ -1,36 +1,34 @@
 package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,12 +36,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.firebase.auth.FirebaseAuth
-import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedCard
-import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedIconButton
 import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedText
@@ -52,23 +50,23 @@ import com.smartserve.sharedui.SharedTextVariant
 
 private fun categoryIconForLabel(label: String): ImageVector =
     when (label.trim().lowercase()) {
-        "cleaning" -> Icons.Filled.CleaningServices
-        "tutoring" -> Icons.Filled.School
-        "moving" -> Icons.Filled.LocalShipping
+        "cleaning"  -> Icons.Filled.CleaningServices
+        "tutoring"  -> Icons.Filled.School
+        "moving"    -> Icons.Filled.LocalShipping
         "lawn care" -> Icons.Filled.LocalFlorist
-        "handyman" -> Icons.Filled.Build
-        "pet care" -> Icons.Filled.Pets
-        "cooking" -> Icons.Filled.Restaurant
-        else -> Icons.Filled.Build
+        "handyman"  -> Icons.Filled.Build
+        "pet care"  -> Icons.Filled.Pets
+        "cooking"   -> Icons.Filled.Restaurant
+        else        -> Icons.Filled.Build
     }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     onNavigateToCategory: (categoryId: String, categoryLabel: String) -> Unit = { _, _ -> },
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
-    onNavigateToProvider: (providerUid: String, providerName: String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -94,6 +92,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Tappable search bar that jumps to the Search tab
         Box(modifier = Modifier.fillMaxWidth()) {
             SharedTextField(
                 value = "",
@@ -126,98 +125,27 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (state.isLoading && state.categories.isEmpty()) {
+        if (state.isLoading) {
             SharedLoading(modifier = Modifier.fillMaxWidth().height(80.dp))
         } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                maxItemsInEachRow = 3,
             ) {
                 state.categories.forEach { category ->
                     CategoryCard(
                         label = category.label,
                         icon = categoryIconForLabel(category.label),
                         onClick = { onNavigateToCategory(category.id, category.label) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        SharedText(text = "Smart Picks", variant = SharedTextVariant.Title)
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (state.isLoading && state.topProviders.isEmpty()) {
-            SharedLoading(modifier = Modifier.fillMaxWidth().height(120.dp))
-        } else if (state.topProviders.isEmpty()) {
-            SharedEmptyState(
-                title = "No providers yet",
-                description = "Check back soon for recommendations.",
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            state.topProviders.forEach { provider ->
-                SmartPickCard(
-                    provider = provider,
-                    onNavigateToProvider = onNavigateToProvider,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun SmartPickCard(
-    provider: CustomerProviderSummary,
-    onNavigateToProvider: (providerUid: String, providerName: String) -> Unit,
-) {
-    SharedCard(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(12.dp),
-        onClick = { onNavigateToProvider(provider.uid, provider.displayName) },
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            SharedAvatar(name = provider.displayName, size = 48.dp)
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                SharedText(text = provider.displayName, variant = SharedTextVariant.BodyStrong)
-                Spacer(modifier = Modifier.height(2.dp))
-                if (provider.avgRating > 0) {
-                    SharedText(
-                        text = "★ ${"%.1f".format(provider.avgRating)}" +
-                            if (provider.totalReviews > 0) " · ${provider.totalReviews} reviews" else "",
-                        variant = SharedTextVariant.Caption,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                } else {
-                    SharedText(
-                        text = "New provider",
-                        variant = SharedTextVariant.Caption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (provider.serviceDescription.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SharedText(
-                        text = provider.serviceDescription.take(80),
-                        variant = SharedTextVariant.Body,
-                    )
-                }
-                if (provider.hourlyRate > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SharedText(
-                        text = "From $${provider.hourlyRate.toInt()}/hr",
-                        variant = SharedTextVariant.Caption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -226,12 +154,12 @@ private fun CategoryCard(
     label: String,
     icon: ImageVector,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     SharedCard(
         onClick = onClick,
-        contentPadding = PaddingValues(vertical = 12.dp, horizontal = 8.dp),
-        // Fixed size so every card is identical regardless of label length
-        modifier = Modifier.size(width = 82.dp, height = 96.dp),
+        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 8.dp),
+        modifier = modifier.height(110.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -241,16 +169,16 @@ private fun CategoryCard(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(32.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            androidx.compose.material3.Text(
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

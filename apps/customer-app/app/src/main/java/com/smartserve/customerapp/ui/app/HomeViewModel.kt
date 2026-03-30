@@ -14,13 +14,11 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val categories: List<ServiceCategoryOption> = emptyList(),
-    val topProviders: List<CustomerProviderSummary> = emptyList(),
     val isLoading: Boolean = true,
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repo: CustomerServicesRepository,
     private val firestore: FirebaseFirestore,
 ) : ViewModel() {
 
@@ -34,24 +32,12 @@ class HomeViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             _state.value = HomeUiState(isLoading = true)
-
-            val categoriesDeferred = launch {
-                val snap = firestore.collection(AuthCollections.CATEGORIES).get().await()
-                val cats = snap.documents.mapNotNull { doc ->
-                    val label = doc.getString("label") ?: return@mapNotNull null
-                    ServiceCategoryOption(id = doc.id, label = label)
-                }
-                _state.value = _state.value.copy(categories = cats)
+            val snap = firestore.collection(AuthCollections.CATEGORIES).get().await()
+            val cats = snap.documents.mapNotNull { doc ->
+                val label = doc.getString("label") ?: return@mapNotNull null
+                ServiceCategoryOption(id = doc.id, label = label)
             }
-
-            val providersDeferred = launch {
-                val providers = repo.getTopProviders(limit = 5)
-                _state.value = _state.value.copy(topProviders = providers)
-            }
-
-            categoriesDeferred.join()
-            providersDeferred.join()
-            _state.value = _state.value.copy(isLoading = false)
+            _state.value = HomeUiState(categories = cats, isLoading = false)
         }
     }
 }

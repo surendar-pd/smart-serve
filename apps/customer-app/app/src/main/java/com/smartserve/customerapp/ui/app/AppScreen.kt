@@ -127,10 +127,6 @@ fun AppScreen(
                         },
                         onNavigateToProfile = { showProfile = true },
                         onNavigateToSearch  = { selectedTabIndex = 1 },
-                        onNavigateToProvider = { uid, name ->
-                            selectedProviderUid  = uid
-                            selectedProviderName = name
-                        },
                     )
                 }
 
