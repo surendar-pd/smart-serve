@@ -30,16 +30,28 @@ class CustomerServicesRepository @Inject constructor(
                 .whereEqualTo("category", categoryRef)
                 .get().await()
 
-            // Filter active in memory
-            val activeProviderIds = snap.documents
-                .filter { it.getBoolean("isActive") != false }   // treat missing as true
+            val activeDocs = snap.documents.filter { it.getBoolean("isActive") != false }
+
+            val activeProviderIds = activeDocs
                 .mapNotNull { it.getDocumentReference("provider")?.id }
                 .distinct()
 
             Log.d(TAG, "getProvidersByCategory($categoryId): ${snap.size()} docs, ${activeProviderIds.size} active providers")
 
+            // The onboarding service has doc.id == providerUid and title = provider's display name.
+            // Use it as a fallback when provider_profiles.displayName is blank.
+            val onboardingTitleByUid: Map<String, String> = activeDocs
+                .mapNotNull { doc ->
+                    val provId = doc.getDocumentReference("provider")?.id ?: return@mapNotNull null
+                    val title = doc.getString("title")?.trim().orEmpty()
+                    if (doc.id == provId && title.isNotBlank() && title != "Service")
+                        provId to title
+                    else null
+                }.toMap()
+
             activeProviderIds.mapNotNull { uid ->
-                profiles.document(uid).get().await().toCustomerProviderSummary()
+                profiles.document(uid).get().await()
+                    .toCustomerProviderSummary(fallbackName = onboardingTitleByUid[uid] ?: "")
             }
         } catch (e: Exception) {
             Log.e(TAG, "getProvidersByCategory failed", e)
@@ -105,8 +117,21 @@ class CustomerServicesRepository @Inject constructor(
             val providerIds = snap.documents
                 .mapNotNull { it.getDocumentReference("provider")?.id }
                 .distinct()
+
+            // Onboarding service has doc.id == providerUid; its title = provider's display name
+            val onboardingTitleByUid: Map<String, String> = snap.documents
+                .mapNotNull { doc ->
+                    val provId = doc.getDocumentReference("provider")?.id ?: return@mapNotNull null
+                    val title = doc.getString("title")?.trim().orEmpty()
+                    if (doc.id == provId && title.isNotBlank() && title != "Service")
+                        provId to title
+                    else null
+                }.toMap()
+
             val providerNames = providerIds.associate { uid ->
-                uid to (profiles.document(uid).get().await().getString("displayName") ?: "")
+                val profileName = profiles.document(uid).get().await().getString("displayName")
+                    ?.trim()?.takeIf { it.isNotBlank() }
+                uid to (profileName ?: onboardingTitleByUid[uid] ?: "")
             }
 
             snap.documents
@@ -157,12 +182,18 @@ class CustomerServicesRepository @Inject constructor(
     }
 }
 
-private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSummary(): CustomerProviderSummary? {
+/**
+ * [fallbackName] is used when [displayName] field is blank — callers can pass the
+ * onboarding service title (service doc where doc.id == providerUid) as the name.
+ */
+private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSummary(
+    fallbackName: String = "",
+): CustomerProviderSummary? {
     val uid = id.ifBlank { return null }
-    // Use email prefix or a short ID as fallback so providers with no display name still appear
     val displayName = getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+        ?: fallbackName.takeIf { it.isNotBlank() }
         ?: getString("email")?.substringBefore("@")?.takeIf { it.isNotBlank() }
-        ?: "Provider ${uid.take(6)}"
+        ?: return null   // Don't surface a provider whose name we cannot resolve at all
     return CustomerProviderSummary(
         uid = uid,
         displayName = displayName,

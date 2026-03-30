@@ -47,9 +47,16 @@ class AuthRepository @Inject constructor(
                 if (role == UserRole.PROVIDER.value) UserRole.PROVIDER.value else UserRole.CUSTOMER.value
             syncDisplayNameToAuth(firebaseUser, fullName)
             commitFirestoreUser(firebaseUser.uid, resolvedRole)
-            if (resolvedRole == UserRole.PROVIDER.value && !phone.isNullOrBlank()) {
+            // Seed provider_profiles with the display name immediately on sign-up so that
+            // even if Firebase Auth is stale when the profile-setup screen calls saveProviderProfile,
+            // the Firestore document already has the correct name.
+            if (resolvedRole == UserRole.PROVIDER.value) {
+                val profileSeed = mutableMapOf<String, Any>(
+                    "displayName" to fullName.trim()
+                )
+                if (!phone.isNullOrBlank()) profileSeed["phone"] = phone
                 firestore.collection(AuthCollections.PROVIDER_PROFILES).document(firebaseUser.uid)
-                    .set(mapOf("phone" to phone), SetOptions.merge())
+                    .set(profileSeed, SetOptions.merge())
                     .await()
             }
 
