@@ -83,6 +83,10 @@ import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
 import com.smartserve.sharedui.SharedTopAppBar
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Warning
 
 /** Extra space below status bar so the snackbar clears [SharedTopAppBar]. */
 private val AuthSnackbarBelowTopBarInset = 64.dp
@@ -558,13 +562,29 @@ fun CustomerProfileSetupScreen(
             leadingIcon = { SharedInputIcon(Icons.Filled.Phone, contentDescription = null) },
         )
 
-        SharedTextField(
-            value = state.homeAddress,
-            onValueChange = viewModel::onHomeAddressChange,
-            label = "Home Address *",
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { SharedInputIcon(Icons.Filled.Home, contentDescription = null) },
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SharedTextField(
+                value = state.homeAddress,
+                onValueChange = viewModel::onHomeAddressChange,
+                label = "Home Address *",
+                modifier = Modifier.weight(1f),
+                leadingIcon = { SharedInputIcon(Icons.Filled.Home, contentDescription = null) },
+            )
+            SharedButton(
+                text = "Verify",
+                onClick = viewModel::validateAddress,
+                enabled = state.homeAddress.isNotBlank() &&
+                          state.addressValidState != AddressValidState.Validating,
+                loading = state.addressValidState == AddressValidState.Validating,
+                variant = SharedButtonVariant.Outline,
+            )
+        }
+
+        AddressValidationStatusRow(state.addressValidState, state.addressGeoResult)
 
         SharedText(
             text = "This address will be pre-filled in all your future bookings.",
@@ -989,4 +1009,65 @@ private fun ServiceRadiusMapPicker(
         steps = 48,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+@Composable
+fun AddressValidationStatusRow(
+    state: AddressValidState,
+    geoResult: GeoResult?,
+) {
+    when (state) {
+        AddressValidState.Idle, AddressValidState.Validating -> Unit
+        AddressValidState.Valid -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            SharedText(
+                text = "Ottawa address confirmed${geoResult?.shortLabel?.let { ": $it" } ?: ""}",
+                variant = SharedTextVariant.Caption,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        AddressValidState.NotOttawa -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(16.dp),
+            )
+            SharedText(
+                text = "Address found but outside the Ottawa service area",
+                variant = SharedTextVariant.Caption,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+        AddressValidState.NotFound -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Error,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(16.dp),
+            )
+            SharedText(
+                text = "Address not found — try a more specific address",
+                variant = SharedTextVariant.Caption,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
 }

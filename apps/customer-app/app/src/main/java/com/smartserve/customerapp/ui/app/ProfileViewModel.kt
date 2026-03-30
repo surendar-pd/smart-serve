@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.smartserve.sharedauth.AddressValidState
+import com.smartserve.sharedauth.GeoResult
+import com.smartserve.sharedauth.NominatimGeocoder
 import javax.inject.Inject
 
 data class ProfileUiState(
@@ -28,6 +31,8 @@ data class ProfileUiState(
     val pushNotifications: Boolean = true,
     val errorMessage: String? = null,
     val savedOk: Boolean = false,
+    val addressValidState: AddressValidState = AddressValidState.Idle,
+    val addressGeoResult: GeoResult? = null,
 )
 
 @HiltViewModel
@@ -35,6 +40,7 @@ class ProfileViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val authRepository: AuthRepository,
+    private val geocoder: NominatimGeocoder,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -57,6 +63,8 @@ class ProfileViewModel @Inject constructor(
                     homeAddress = doc.getString("homeAddress") ?: "",
                     locationAwareness = doc.getBoolean("locationAwareness") ?: true,
                     pushNotifications = doc.getBoolean("pushNotifications") ?: true,
+                    addressValidState = AddressValidState.Idle,
+                    addressGeoResult = null,
                 )
             }
         } catch (e: Exception) {
@@ -66,7 +74,33 @@ class ProfileViewModel @Inject constructor(
 
     fun onNameChange(v: String) = _state.update { it.copy(name = v) }
     fun onPhoneChange(v: String) = _state.update { it.copy(phone = v) }
-    fun onAddressChange(v: String) = _state.update { it.copy(homeAddress = v) }
+    fun onAddressChange(v: String) = _state.update {
+        it.copy(homeAddress = v, addressValidState = AddressValidState.Idle, addressGeoResult = null)
+    }
+
+    fun validateAddress() = viewModelScope.launch {
+        val addr = _state.value.homeAddress.trim()
+        if (addr.isBlank()) return@launch
+        _state.update { it.copy(addressValidState = AddressValidState.Validating, addressGeoResult = null) }
+        val result = geocoder.forwardGeocode(addr)
+        _state.update {
+            when {
+                result == null -> it.copy(
+                    addressValidState = AddressValidState.NotFound,
+                    addressGeoResult  = null,
+                )
+                !result.isInOttawa -> it.copy(
+                    addressValidState = AddressValidState.NotOttawa,
+                    addressGeoResult  = result,
+                )
+                else -> it.copy(
+                    addressValidState = AddressValidState.Valid,
+                    addressGeoResult  = result,
+                    homeAddress       = result.shortLabel,
+                )
+            }
+        }
+    }
     fun onLocationToggle(v: Boolean) = _state.update { it.copy(locationAwareness = v) }
     fun onNotifToggle(v: Boolean) = _state.update { it.copy(pushNotifications = v) }
     fun clearSaved() = _state.update { it.copy(savedOk = false) }

@@ -27,7 +27,23 @@ import com.smartserve.sharedui.SharedSwitchRow
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import com.smartserve.sharedauth.AddressValidState
+import com.smartserve.sharedauth.AddressValidationStatusRow
+import com.smartserve.sharedauth.GeoResult
 import kotlinx.coroutines.delay
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint as OsmGeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 
 @Composable
 fun ProfileScreen(
@@ -114,13 +130,45 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            SharedTextField(
-                value = state.homeAddress,
-                onValueChange = viewModel::onAddressChange,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                label = "Home Address",
-                placeholder = "e.g. 123 Main St, Ottawa",
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SharedTextField(
+                    value = state.homeAddress,
+                    onValueChange = viewModel::onAddressChange,
+                    modifier = Modifier.weight(1f),
+                    label = "Home Address",
+                    placeholder = "e.g. 123 Main St, Ottawa",
+                )
+                SharedButton(
+                    text = "Verify",
+                    onClick = viewModel::validateAddress,
+                    enabled = state.homeAddress.isNotBlank() &&
+                              state.addressValidState != AddressValidState.Validating,
+                    loading = state.addressValidState == AddressValidState.Validating,
+                    variant = SharedButtonVariant.Outline,
+                )
+            }
+
+            AddressValidationStatusRow(
+                state = state.addressValidState,
+                geoResult = state.addressGeoResult,
             )
+
+            // Show OSM map preview when address is confirmed as Ottawa
+            if (state.addressGeoResult != null && state.addressGeoResult!!.isInOttawa) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OsmAddressMapPreview(
+                    lat = state.addressGeoResult!!.lat,
+                    lon = state.addressGeoResult!!.lon,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
+                )
+            }
 
             Spacer(modifier = Modifier.height(28.dp))
 
@@ -180,4 +228,38 @@ fun ProfileScreen(
             }
         }
     }
+}
+
+@Composable
+private fun OsmAddressMapPreview(
+    lat: Double,
+    lon: Double,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    Configuration.getInstance().userAgentValue = "SmartServe/1.0"
+    val mapView = remember {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(false)
+            isClickable = false
+            controller.setZoom(16.0)
+        }
+    }
+    val marker = remember { Marker(mapView) }
+    LaunchedEffect(lat, lon) {
+        val gp = OsmGeoPoint(lat, lon)
+        marker.position = gp
+        if (!mapView.overlays.contains(marker)) mapView.overlays.add(marker)
+        mapView.controller.setCenter(gp)
+        mapView.invalidate()
+    }
+    DisposableEffect(Unit) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
+    AndroidView(
+        factory = { mapView },
+        modifier = modifier,
+    )
 }
