@@ -38,9 +38,15 @@ class CustomerServicesRepository @Inject constructor(
 
             Log.d(TAG, "getProvidersByCategory($categoryId): ${snap.size()} docs, ${activeProviderIds.size} active providers")
 
-            // The onboarding service has doc.id == providerUid and title = provider's display name.
-            // Use it as a fallback when provider_profiles.displayName is blank.
-            val onboardingTitleByUid: Map<String, String> = activeDocs
+            // Try to resolve a name for each provider.
+            // 1. profile.displayName (fast path – usually populated for new accounts)
+            // 2. title of the onboarding service in THIS query (doc.id == providerUid)
+            // 3. Separate fetch of services/{uid} for the onboarding service when it lives
+            //    in a different category (e.g. provider onboarded as "Plumbing", customer
+            //    browses "Electrical").
+
+            // Build a quick map from docs already in this query
+            val inQueryOnboardingTitle: Map<String, String> = activeDocs
                 .mapNotNull { doc ->
                     val provId = doc.getDocumentReference("provider")?.id ?: return@mapNotNull null
                     val title = doc.getString("title")?.trim().orEmpty()
@@ -50,8 +56,22 @@ class CustomerServicesRepository @Inject constructor(
                 }.toMap()
 
             activeProviderIds.mapNotNull { uid ->
-                profiles.document(uid).get().await()
-                    .toCustomerProviderSummary(fallbackName = onboardingTitleByUid[uid] ?: "")
+                val profileDoc = profiles.document(uid).get().await()
+                val profileName = profileDoc.getString("displayName")?.trim()
+                    ?.takeIf { it.isNotBlank() }
+
+                val fallbackName = if (profileName.isNullOrBlank()) {
+                    // Try in-query result first, then fetch onboarding service separately
+                    inQueryOnboardingTitle[uid]?.takeIf { it.isNotBlank() }
+                        ?: try {
+                            services.document(uid).get().await()
+                                .getString("title")?.trim()
+                                ?.takeIf { it.isNotBlank() && it != "Service" }
+                        } catch (_: Exception) { null }
+                        ?: ""
+                } else ""
+
+                profileDoc.toCustomerProviderSummary(fallbackName = fallbackName)
             }
         } catch (e: Exception) {
             Log.e(TAG, "getProvidersByCategory failed", e)
@@ -118,8 +138,8 @@ class CustomerServicesRepository @Inject constructor(
                 .mapNotNull { it.getDocumentReference("provider")?.id }
                 .distinct()
 
-            // Onboarding service has doc.id == providerUid; its title = provider's display name
-            val onboardingTitleByUid: Map<String, String> = snap.documents
+            // Build name fallback map from services already fetched (onboarding doc has id == uid)
+            val inQueryOnboardingTitle: Map<String, String> = snap.documents
                 .mapNotNull { doc ->
                     val provId = doc.getDocumentReference("provider")?.id ?: return@mapNotNull null
                     val title = doc.getString("title")?.trim().orEmpty()
@@ -131,7 +151,14 @@ class CustomerServicesRepository @Inject constructor(
             val providerNames = providerIds.associate { uid ->
                 val profileName = profiles.document(uid).get().await().getString("displayName")
                     ?.trim()?.takeIf { it.isNotBlank() }
-                uid to (profileName ?: onboardingTitleByUid[uid] ?: "")
+
+                val name = profileName
+                    ?: inQueryOnboardingTitle[uid]?.takeIf { it.isNotBlank() }
+                    // getAllActiveServices fetches ALL services, so if the onboarding service
+                    // exists it will be in snap.documents already — no extra fetch needed here.
+                    ?: "Provider ${uid.take(6)}"
+
+                uid to name
             }
 
             snap.documents
