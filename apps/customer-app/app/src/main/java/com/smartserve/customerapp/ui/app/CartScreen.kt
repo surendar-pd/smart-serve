@@ -83,7 +83,7 @@ fun CartScreen(
                                         }
                                     }
                                     SharedText(
-                                        text = "📅 $dateTime",
+                                        text = dateTime,
                                         variant = SharedTextVariant.Caption,
                                         color = MaterialTheme.colorScheme.primary,
                                     )
