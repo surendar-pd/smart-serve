@@ -55,13 +55,16 @@ class CustomerServicesRepository @Inject constructor(
                     else null
                 }.toMap()
 
+            // Index active service docs by provider UID for quick lookup
+            val serviceDocsByProvider: Map<String, List<com.google.firebase.firestore.DocumentSnapshot>> =
+                activeDocs.groupBy { it.getDocumentReference("provider")?.id ?: "" }
+
             activeProviderIds.mapNotNull { uid ->
                 val profileDoc = profiles.document(uid).get().await()
                 val profileName = profileDoc.getString("displayName")?.trim()
                     ?.takeIf { it.isNotBlank() }
 
                 val fallbackName = if (profileName.isNullOrBlank()) {
-                    // Try in-query result first, then fetch onboarding service separately
                     inQueryOnboardingTitle[uid]?.takeIf { it.isNotBlank() }
                         ?: try {
                             services.document(uid).get().await()
@@ -71,7 +74,21 @@ class CustomerServicesRepository @Inject constructor(
                         ?: ""
                 } else ""
 
-                profileDoc.toCustomerProviderSummary(fallbackName = fallbackName)
+                // Use the first active service in this category for rate & availability
+                val svcDoc = serviceDocsByProvider[uid]?.firstOrNull()
+                val categoryRate = svcDoc?.getDouble("hourlyRate")
+                    ?: svcDoc?.getLong("hourlyRate")?.toDouble() ?: 0.0
+                val categoryDays = (svcDoc?.get("availabilityDays") as? List<*>)
+                    ?.mapNotNull { it?.toString() } ?: emptyList()
+                val categoryStart = svcDoc?.getString("availabilityStart") ?: ""
+                val categoryEnd   = svcDoc?.getString("availabilityEnd")   ?: ""
+
+                profileDoc.toCustomerProviderSummary(fallbackName = fallbackName)?.copy(
+                    categoryServiceRate      = categoryRate,
+                    categoryAvailabilityDays = categoryDays,
+                    categoryAvailabilityStart = categoryStart,
+                    categoryAvailabilityEnd   = categoryEnd,
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "getProvidersByCategory failed", e)

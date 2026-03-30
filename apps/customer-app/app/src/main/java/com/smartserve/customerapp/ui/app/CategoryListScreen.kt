@@ -65,19 +65,29 @@ fun CategoryListScreen(
                     LazyColumn {
                         itemsIndexed(s.providers) { index, provider ->
                             val subtitle = buildString {
+                                // Rating
                                 if (provider.avgRating > 0) {
                                     append("★ ${"%.1f".format(provider.avgRating)}")
-                                    if (provider.totalReviews > 0) append(" · ${provider.totalReviews} reviews")
+                                    if (provider.totalReviews > 0) append(" (${provider.totalReviews})")
+                                } else {
+                                    append("New provider")
                                 }
-                                if (provider.serviceDescription.isNotBlank()) {
-                                    if (isNotEmpty()) append(" · ")
-                                    append(provider.serviceDescription.take(50))
+                                // Price from this category's service
+                                if (provider.categoryServiceRate > 0) {
+                                    append(" · $${provider.categoryServiceRate.toInt()}/hr")
                                 }
-                                if (provider.hourlyRate > 0) {
-                                    if (isNotEmpty()) append(" · ")
-                                    append("$${provider.hourlyRate.toInt()}/hr")
+                                // Availability days (max 3 shown, then "…")
+                                if (provider.categoryAvailabilityDays.isNotEmpty()) {
+                                    val days = provider.categoryAvailabilityDays
+                                    val daysLabel = if (days.size <= 3) days.joinToString(", ")
+                                                    else "${days.take(3).joinToString(", ")}…"
+                                    append(" · $daysLabel")
                                 }
-                                if (isEmpty()) append("New provider")
+                                // Availability hours
+                                if (provider.categoryAvailabilityStart.isNotBlank()
+                                    && provider.categoryAvailabilityEnd.isNotBlank()) {
+                                    append(" ${provider.categoryAvailabilityStart}–${provider.categoryAvailabilityEnd}")
+                                }
                             }
                             SharedListItem(
                                 title = provider.displayName,

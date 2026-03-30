@@ -7,6 +7,11 @@ data class CustomerProviderSummary(
     val totalReviews: Int,
     val serviceDescription: String,
     val hourlyRate: Double = 0.0,
+    // Populated when loaded in the context of a specific category
+    val categoryServiceRate: Double = 0.0,
+    val categoryAvailabilityDays: List<String> = emptyList(),
+    val categoryAvailabilityStart: String = "",
+    val categoryAvailabilityEnd: String = "",
 )
 
 data class CustomerServiceListing(
