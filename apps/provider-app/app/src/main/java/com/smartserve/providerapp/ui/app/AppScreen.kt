@@ -95,8 +95,41 @@ fun AppScreen(onLogout: () -> Unit) {
                 }
                 1 -> BookingsScreen(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    onNavigateToRequestDetail = { bookingId ->
+                        selectedTabIndex = 0
+                        homeStack = HomeStack.RequestDetail(bookingId)
+                    },
                 )
-                2 -> ProfileScreen(onLogout = onLogout)
+                2 -> when (val stack = profileStack) {
+                    is ProfileStack.Main -> ProfileScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onLogout = onLogout,
+                        onOpenServices = { profileStack = ProfileStack.ServicesList },
+                    )
+                    is ProfileStack.ServicesList -> MyServicesScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { profileStack = ProfileStack.Main },
+                        onAddService = {
+                            profileStack = ProfileStack.ServiceEditor(
+                                serviceId = null,
+                                sessionKey = System.currentTimeMillis(),
+                            )
+                        },
+                        onOpenService = { serviceId ->
+                            profileStack = ProfileStack.ServiceEditor(
+                                serviceId = serviceId,
+                                sessionKey = System.currentTimeMillis(),
+                            )
+                        },
+                    )
+                    is ProfileStack.ServiceEditor -> ServiceEditorScreen(
+                        serviceId = stack.serviceId,
+                        sessionKey = stack.sessionKey,
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { profileStack = ProfileStack.ServicesList },
+                        onFinished = { profileStack = ProfileStack.ServicesList },
+                    )
+                }
             }
         },
     )

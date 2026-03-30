@@ -1,5 +1,6 @@
 package com.smartserve.providerapp.ui.app
 
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.DocumentSnapshot
 import com.smartserve.sharedauth.DefaultServiceAvailability
 
@@ -21,6 +22,9 @@ data class ProviderServiceRow(
     val availabilityDays: List<String>,
     val availabilityStart: String,
     val availabilityEnd: String,
+    val photoUrls: List<String>,
+    val serviceCenter: GeoPoint?,
+    val serviceRadiusKm: Double,
 )
 
 data class ServiceDraft(
@@ -32,6 +36,9 @@ data class ServiceDraft(
     val availabilityDays: List<String>,
     val availabilityStart: String,
     val availabilityEnd: String,
+    val photoUrls: List<String> = emptyList(),
+    val serviceCenter: GeoPoint? = null,
+    val serviceRadiusKm: Double? = null,
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -66,5 +73,8 @@ fun DocumentSnapshot.toProviderServiceRow(): ProviderServiceRow? {
         availabilityDays = days,
         availabilityStart = start,
         availabilityEnd = end,
+        photoUrls = readStringList("photoUrls"),
+        serviceCenter = getGeoPoint("serviceCenter"),
+        serviceRadiusKm = getDouble("serviceRadiusKm") ?: (getLong("serviceRadiusKm")?.toDouble() ?: 10.0),
     )
 }
