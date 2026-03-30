@@ -21,6 +21,12 @@ private sealed interface HomeStack {
     data class RequestDetail(val bookingId: String) : HomeStack
     data class ActiveJob(val bookingId: String) : HomeStack
     data class Chat(val bookingId: String, val returnTo: HomeStack) : HomeStack
+    data class Navigation(                             // ← ADD
+        val customerLat: Double,
+        val customerLng: Double,
+        val customerAddress: String,
+        val returnTo: HomeStack,
+    ) : HomeStack
 }
 
 private sealed interface ProfileStack {
@@ -85,6 +91,14 @@ fun AppScreen(onLogout: () -> Unit) {
                                 returnTo  = stack,
                             )
                         },
+                        onNavigateToMap      = { lat, lng, address ->      // ← ADD
+                            homeStack = HomeStack.Navigation(
+                            customerLat     = lat,
+                            customerLng     = lng,
+                            customerAddress = address,
+                            returnTo        = stack,
+                            )
+                        },
                     )
                     is HomeStack.Chat -> ChatScreen(
                         bookingId = stack.bookingId,
@@ -92,6 +106,14 @@ fun AppScreen(onLogout: () -> Unit) {
                         bottomPadding = innerPadding.calculateBottomPadding(),
                         topPadding     = innerPadding.calculateTopPadding(),
                     )
+                    is HomeStack.Navigation -> ProviderNavigationScreen(
+                        customerLat     = stack.customerLat,
+                        customerLng     = stack.customerLng,
+                        customerAddress = stack.customerAddress,
+                        onBack          = { homeStack = stack.returnTo },
+                        bottomPadding   = innerPadding.calculateBottomPadding(),
+                        topPadding      = innerPadding.calculateTopPadding(),
+            )
                 }
                 1 -> BookingsScreen(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),

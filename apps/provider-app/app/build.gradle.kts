@@ -92,4 +92,14 @@ dependencies {
     // Google Maps Compose
     implementation("com.google.maps.android:maps-compose:4.3.3")         // ADD
     implementation("com.google.android.gms:play-services-maps:19.0.0")   // ADD
+
+    // OpenStreetMap map rendering
+    implementation("org.osmdroid:osmdroid-android:6.1.17")
+
+    // Google Play Services — GPS location
+    implementation("com.google.android.gms:play-services-location:21.2.0")
+
+    // Retrofit — HTTP client for OSRM API
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 }

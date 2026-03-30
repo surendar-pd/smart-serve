@@ -113,6 +113,8 @@ data class ServiceRequest(
     val createdAt: Timestamp?,
     val completedAt: Timestamp?,
     val callLoggedAt: Timestamp?,
+    val customerLat: Double = 0.0,
+    val customerLng: Double = 0.0,
 )
 
 // ── Firestore deserializer ────────────────────────────────────────────────────
@@ -162,5 +164,7 @@ fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
         createdAt           = getTimestamp("createdAt"),
         completedAt         = getTimestamp("completedAt"),
         callLoggedAt        = getTimestamp("callLoggedAt"),
+        customerLat = getDouble("customerLat") ?: 0.0,
+        customerLng = getDouble("customerLng") ?: 0.0,
     )
 }.getOrNull()
