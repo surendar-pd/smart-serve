@@ -23,10 +23,17 @@ private sealed interface HomeStack {
     data class Chat(val bookingId: String, val returnTo: HomeStack) : HomeStack
 }
 
+private sealed interface ProfileStack {
+    object Main : ProfileStack
+    object ServicesList : ProfileStack
+    data class ServiceEditor(val serviceId: String?, val sessionKey: Long) : ProfileStack
+}
+
 @Composable
 fun AppScreen(onLogout: () -> Unit) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var homeStack by remember { mutableStateOf<HomeStack>(HomeStack.Home) }
+    var profileStack by remember { mutableStateOf<ProfileStack>(ProfileStack.Main) }
 
     val tabs = listOf(
         AppTab(title = "Home",     icon = Icons.Filled.Home),
@@ -40,6 +47,7 @@ fun AppScreen(onLogout: () -> Unit) {
         onTabSelected   = { index ->
             selectedTabIndex = index
             if (index != 0) homeStack = HomeStack.Home
+            if (index != 2) profileStack = ProfileStack.Main
         },
         content = { innerPadding ->
             when (selectedTabIndex) {

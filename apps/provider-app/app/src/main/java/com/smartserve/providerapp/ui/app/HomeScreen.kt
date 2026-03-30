@@ -53,23 +53,16 @@ fun HomeScreen(
         ?.displayName?.substringBefore(" ")?.takeIf { it.isNotBlank() } ?: "there"
 
     Column(modifier = modifier.fillMaxSize()) {
+        ProviderTabHeader(
+            title = "Hello, $firstName",
+            subtitle = "Manage your requests",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            trailing = {
+                SharedAvatar(name = firstName, size = 40.dp)
+            },
+        )
 
-        // ── Header ────────────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SharedAvatar(name = firstName, size = 40.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                SharedText(text = "Hello, $firstName", variant = SharedTextVariant.Title)
-                SharedText(text = "Manage your requests", variant = SharedTextVariant.Body)
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
 
         // ── Online / Offline toggle ───────────────────────────────────────────
         SharedSwitchRow(

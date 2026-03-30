@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.smartserve.sharedauth.AuthCollections
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
@@ -90,7 +91,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         runCatching {
             FirebaseFirestore.getInstance()
-                .collection("categories")
+                .collection(AuthCollections.CATEGORIES)
                 .get()
                 .await()
                 .documents

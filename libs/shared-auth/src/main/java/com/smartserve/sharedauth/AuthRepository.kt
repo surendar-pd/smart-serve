@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
@@ -109,7 +110,10 @@ class AuthRepository @Inject constructor(
                 .document(uid)
                 .get(com.google.firebase.firestore.Source.SERVER)
                 .await()
-            doc.exists() && doc.getString("serviceCategory")?.isNotBlank() == true
+            doc.exists() && (
+                doc.getDocumentReference("category") != null ||
+                    doc.getString("serviceCategory")?.isNotBlank() == true
+                )
         }
     } catch (e: Exception) {
         false
@@ -127,6 +131,40 @@ class AuthRepository @Inject constructor(
         "customer"
     }
 }
+
+    suspend fun listServiceCategories(): Result<List<ServiceCategoryOption>> {
+        return try {
+            val snap = firestore.collection(AuthCollections.CATEGORIES).get().await()
+            val list = snap.documents.mapNotNull { doc ->
+                val label = doc.getString("label")?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                ServiceCategoryOption(id = doc.id, label = label)
+            }.sortedBy { it.label.lowercase() }
+            Result.success(list)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Adds a document to [AuthCollections.CATEGORIES] with `label` and `createdAt`.
+     * Returns the new document id for use as [ProviderServiceProfile.serviceCategory].
+     */
+    suspend fun addServiceCategory(label: String): Result<ServiceCategoryOption> {
+        val trimmed = label.trim()
+        if (trimmed.isBlank()) {
+            return Result.failure(IllegalArgumentException("Category name is required"))
+        }
+        return try {
+            val data = mapOf(
+                "label" to trimmed,
+                "createdAt" to Timestamp.now(),
+            )
+            val ref = firestore.collection(AuthCollections.CATEGORIES).add(data).await()
+            Result.success(ServiceCategoryOption(id = ref.id, label = trimmed))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     suspend fun saveCustomerProfile(
         uid: String,
@@ -163,9 +201,6 @@ class AuthRepository @Inject constructor(
         hourlyRate: Double,
         serviceCenter: com.google.firebase.firestore.GeoPoint?,
         serviceRadiusKm: Double,
-        availabilityDays: List<String>,
-        availabilityStart: String,
-        availabilityEnd: String
     ): Result<Unit> {
         return try {
             val existing = firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).get().await()
@@ -190,11 +225,52 @@ class AuthRepository @Inject constructor(
                 hourlyRate = hourlyRate,
                 serviceCenter = serviceCenter,
                 serviceRadiusKm = serviceRadiusKm,
-                availabilityDays = availabilityDays,
-                availabilityStart = availabilityStart,
-                availabilityEnd = availabilityEnd
             )
-            firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).set(profile).await()
+            val providerDocRef = firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid)
+
+            if (serviceCategory.isBlank()) {
+                providerDocRef.set(profile).await()
+            } else {
+                val categoryDocRef = firestore.collection(AuthCollections.CATEGORIES).document(serviceCategory)
+                val serviceDocRef = firestore.collection(AuthCollections.SERVICES).document(uid)
+                val serviceSnap = serviceDocRef.get().await()
+                val title = resolvedDisplayName.trim().ifBlank { "Service" }
+                val serviceListing = mutableMapOf<String, Any>(
+                    "provider" to providerDocRef,
+                    "category" to categoryDocRef,
+                    "title" to title,
+                    "description" to serviceDescription,
+                    "hourlyRate" to hourlyRate,
+                    "isActive" to true,
+                    "availabilityDays" to DefaultServiceAvailability.DAYS,
+                    "availabilityStart" to DefaultServiceAvailability.START,
+                    "availabilityEnd" to DefaultServiceAvailability.END,
+                    "updatedAt" to Timestamp.now(),
+                )
+                if (!serviceSnap.exists()) {
+                    serviceListing["createdAt"] = Timestamp.now()
+                }
+
+                val batch = firestore.batch()
+                batch.set(providerDocRef, profile)
+                batch.set(
+                    providerDocRef,
+                    mapOf("category" to categoryDocRef),
+                    SetOptions.merge(),
+                )
+                batch.set(serviceDocRef, serviceListing, SetOptions.merge())
+                if (serviceSnap.exists()) {
+                    batch.update(
+                        serviceDocRef,
+                        mapOf(
+                            "phone" to FieldValue.delete(),
+                            "serviceRadiusKm" to FieldValue.delete(),
+                            "serviceCenter" to FieldValue.delete(),
+                        ),
+                    )
+                }
+                batch.commit().await()
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

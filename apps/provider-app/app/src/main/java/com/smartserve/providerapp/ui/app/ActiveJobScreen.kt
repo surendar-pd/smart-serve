@@ -75,7 +75,14 @@ fun ActiveJobScreen(
 
     SharedScaffold(
         modifier     = modifier,
-        topBar       = { SharedTopAppBar(title = "Active Job", onBack = onNavigateToBookings) },
+        topBar       = {
+            ProviderStackHeader(
+                title = "Active job",
+                subtitle = "Job in progress",
+                onBack = onNavigateToBookings,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         when {

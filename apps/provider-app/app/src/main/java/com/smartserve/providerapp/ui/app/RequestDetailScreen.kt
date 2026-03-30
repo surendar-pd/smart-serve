@@ -33,7 +33,6 @@ import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextVariant
-import com.smartserve.sharedui.SharedTopAppBar
 
 @Composable
 fun RequestDetailScreen(
@@ -63,7 +62,12 @@ fun RequestDetailScreen(
 
     // ── rest of your UI is UNCHANGED from here down ───────────────────────────
     Column(modifier = modifier.fillMaxSize()) {
-        SharedTopAppBar(title = "Request Details", onBack = onBack)
+        ProviderStackHeader(
+            title = "Request details",
+            subtitle = "Review and respond to the customer",
+            onBack = onBack,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        )
 
         when {
             state.isLoading -> Box(

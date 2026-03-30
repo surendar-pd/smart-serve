@@ -12,7 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,6 +33,7 @@ import java.util.Calendar
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit,
+    onOpenServices: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
     val user        = FirebaseAuth.getInstance().currentUser
@@ -42,54 +43,65 @@ fun ProfileScreen(
     } ?: "--"
 
     Column(
-        modifier            = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 20.dp),
+        modifier            = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        SharedAvatar(name = displayName, size = 64.dp)
-
-        Spacer(Modifier.height(8.dp))
-
-        SharedText(text = displayName,             variant = SharedTextVariant.Title)
-        SharedText(text = "Member since $memberSince", variant = SharedTextVariant.Body)
-
-        Spacer(Modifier.height(28.dp))
-
-        SharedListItem(
-            title       = "Services and Details",
-            leadingIcon = Icons.Filled.Person,
-            onClick     = { /* TODO */ },
-        )
-        SharedListItem(
-            title       = "Serviceable Areas",
-            leadingIcon = Icons.Filled.LocationOn,
-            onClick     = { /* TODO */ },
-        )
-        SharedListItem(
-            title       = "Availability Hours",
-            leadingIcon = Icons.Filled.AccessTime,
-            onClick     = { /* TODO */ },
-        )
-        SharedListItem(
-            title       = "Notification Settings",
-            leadingIcon = Icons.Filled.Notifications,
-            onClick     = { /* TODO */ },
-        )
-        SharedListItem(
-            title       = "Privacy & Data",
-            leadingIcon = Icons.Filled.PrivacyTip,
-            onClick     = { /* TODO */ },
+        ProviderTabHeader(
+            title = "Profile",
+            subtitle = "Account and settings",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
 
-        Spacer(Modifier.height(28.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SharedAvatar(name = displayName, size = 64.dp)
 
-        SharedButton(
-            text     = "Log Out",
-            onClick  = { authViewModel.signOut(); onLogout() },
-            modifier = Modifier.fillMaxWidth(),
-            variant  = SharedButtonVariant.Ghost,
-        )
+            Spacer(Modifier.height(8.dp))
+
+            SharedText(text = displayName, variant = SharedTextVariant.Title)
+            SharedText(text = "Member since $memberSince", variant = SharedTextVariant.Body)
+
+            Spacer(Modifier.height(28.dp))
+
+            SharedListItem(
+                title = "Services and Details",
+                leadingIcon = Icons.Filled.Build,
+                onClick = onOpenServices,
+            )
+            SharedListItem(
+                title = "Serviceable Areas",
+                leadingIcon = Icons.Filled.LocationOn,
+                onClick = { /* TODO */ },
+            )
+            SharedListItem(
+                title = "Availability Hours",
+                leadingIcon = Icons.Filled.AccessTime,
+                onClick = { /* TODO */ },
+            )
+            SharedListItem(
+                title = "Notification Settings",
+                leadingIcon = Icons.Filled.Notifications,
+                onClick = { /* TODO */ },
+            )
+            SharedListItem(
+                title = "Privacy & Data",
+                leadingIcon = Icons.Filled.PrivacyTip,
+                onClick = { /* TODO */ },
+            )
+
+            Spacer(Modifier.height(28.dp))
+
+            SharedButton(
+                text = "Log Out",
+                onClick = { authViewModel.signOut(); onLogout() },
+                modifier = Modifier.fillMaxWidth(),
+                variant = SharedButtonVariant.Ghost,
+            )
+        }
     }
 }

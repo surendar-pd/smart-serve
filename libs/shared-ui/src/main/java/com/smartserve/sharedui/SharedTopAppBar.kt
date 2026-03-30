@@ -14,6 +14,7 @@ fun SharedTopAppBar(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    navigationEnabled: Boolean = true,
 ) {
     TopAppBar(
         modifier = modifier,
@@ -29,6 +30,7 @@ fun SharedTopAppBar(
                 onClick = onBack,
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
+                enabled = navigationEnabled,
             )
         },
     )

@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.smartserve.sharedauth.AuthCollections
 import com.smartserve.sharedauth.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +47,7 @@ class ProfileViewModel @Inject constructor(
     private fun load() = viewModelScope.launch {
         try {
             val user = auth.currentUser ?: return@launch
-            val doc = firestore.collection("customer_profiles").document(user.uid).get().await()
+            val doc = firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(user.uid).get().await()
             _state.update {
                 it.copy(
                     isLoading = false,
@@ -80,7 +81,7 @@ class ProfileViewModel @Inject constructor(
                 val request = UserProfileChangeRequest.Builder().setDisplayName(s.name).build()
                 user.updateProfile(request).await()
             }
-            firestore.collection("customer_profiles").document(user.uid)
+            firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(user.uid)
                 .set(
                     mapOf(
                         "phone" to s.phone,
