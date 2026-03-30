@@ -80,12 +80,13 @@ class CustomerServicesRepository @Inject constructor(
     }
 
     /**
-     * Returns all services for a given provider.
-     * Filters isActive in-memory to avoid requiring a composite Firestore index.
+     * Returns services for a given provider, optionally filtered to a specific category.
+     * Both filters are applied in-memory to avoid composite Firestore index requirements.
      */
     suspend fun getServicesForProvider(
         providerUid: String,
         providerName: String,
+        categoryId: String = "",
     ): List<CustomerServiceListing> {
         return try {
             val providerRef = profiles.document(providerUid)
@@ -94,10 +95,15 @@ class CustomerServicesRepository @Inject constructor(
                 .whereEqualTo("provider", providerRef)
                 .get().await()
 
-            Log.d(TAG, "getServicesForProvider($providerUid): ${snap.size()} docs total")
+            Log.d(TAG, "getServicesForProvider($providerUid, cat=$categoryId): ${snap.size()} docs total")
 
             snap.documents
-                .filter { it.getBoolean("isActive") != false }   // treat missing as true
+                .filter { doc ->
+                    val active = doc.getBoolean("isActive") != false
+                    val matchesCat = categoryId.isEmpty() ||
+                        doc.getDocumentReference("category")?.id == categoryId
+                    active && matchesCat
+                }
                 .mapNotNull { doc ->
                     val title = doc.getString("title")?.trim().orEmpty()
                         .ifBlank { return@mapNotNull null }
@@ -246,5 +252,6 @@ private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSum
         avgRating = getDouble("avgRating") ?: getLong("avgRating")?.toDouble() ?: 0.0,
         totalReviews = getLong("totalReviews")?.toInt() ?: 0,
         serviceDescription = getString("serviceDescription").orEmpty(),
+        hourlyRate = getDouble("hourlyRate") ?: getLong("hourlyRate")?.toDouble() ?: 0.0,
     )
 }

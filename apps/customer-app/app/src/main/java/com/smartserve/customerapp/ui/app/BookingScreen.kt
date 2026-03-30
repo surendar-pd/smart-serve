@@ -2,8 +2,6 @@ package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,7 +22,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,7 +37,6 @@ import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
-import com.smartserve.sharedui.SharedChip
 import com.smartserve.sharedui.SharedProgress
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextArea
@@ -66,26 +66,21 @@ private fun Long.toDayOfWeekShort(): String {
     }
 }
 
-/**
- * Generate hourly time-slot labels between [start] and [end] (both "HH:mm" format).
- * Example: "09:00" .. "17:00"  →  ["9 AM", "10 AM", "11 AM", "12 PM", "1 PM", …, "4 PM"]
- */
-private fun generateTimeSlots(start: String, end: String): List<String> {
-    val startHour = start.substringBefore(":").toIntOrNull() ?: 9
-    val endHour   = end.substringBefore(":").toIntOrNull()   ?: 17
-    return (startHour until endHour).map { h ->
-        when {
-            h == 0    -> "12 AM"
-            h < 12    -> "$h AM"
-            h == 12   -> "12 PM"
-            else      -> "${h - 12} PM"
-        }
+/** Format an hour/minute pair to "9:30 AM" style. */
+private fun formatTime(hour: Int, minute: Int): String {
+    val period = if (hour < 12) "AM" else "PM"
+    val h = when {
+        hour == 0  -> 12
+        hour <= 12 -> hour
+        else       -> hour - 12
     }
+    val m = minute.toString().padStart(2, '0')
+    return "$h:$m $period"
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingScreen(
     service: CustomerServiceListing,
@@ -98,15 +93,17 @@ fun BookingScreen(
     val priceLabel   = "$${service.hourlyRate.toInt()}/hr"
 
     val availDays  = service.availabilityDays   // e.g. ["Mon", "Wed", "Fri"]
-    val timeSlots  = remember(service.availabilityStart, service.availabilityEnd) {
-        generateTimeSlots(service.availabilityStart, service.availabilityEnd)
-    }
+    val startHour  = service.availabilityStart.substringBefore(":").toIntOrNull() ?: 9
+    val endHour    = service.availabilityEnd.substringBefore(":").toIntOrNull()   ?: 17
+    val windowLabel = "${formatTime(startHour, 0)} – ${formatTime(endHour, 0)}"
 
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
+    var timeError    by remember { mutableStateOf("") }
     var address      by remember { mutableStateOf("123 Main St, Ottawa") }
     var notes        by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
     // ── Date picker ──────────────────────────────────────────────────────────
     if (showDatePicker) {
@@ -145,6 +142,46 @@ fun BookingScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    // ── Time picker dialog ────────────────────────────────────────────────────
+    if (showTimePicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour   = startHour,
+            initialMinute = 0,
+            is24Hour      = false,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = {
+                Text("Select Time")
+            },
+            text = {
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    TimePicker(state = timePickerState)
+                    Text(
+                        text = "Available: $windowLabel",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val h = timePickerState.hour
+                    if (h in startHour until endHour) {
+                        selectedTime = formatTime(h, timePickerState.minute)
+                        timeError = ""
+                        showTimePicker = false
+                    } else {
+                        timeError = "Please choose a time between $windowLabel"
+                    }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
+            },
+        )
     }
 
     // ── Layout ───────────────────────────────────────────────────────────────
@@ -186,27 +223,24 @@ fun BookingScreen(
 
             // ── Time ────────────────────────────────────────────────────────
             SharedText(text = "Select Time", variant = SharedTextVariant.Label)
-            if (timeSlots.isEmpty()) {
+            SharedText(
+                text = "Available: $windowLabel",
+                variant = SharedTextVariant.Caption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SharedButton(
+                text = if (selectedTime.isEmpty()) "Choose a time" else selectedTime,
+                onClick = { showTimePicker = true; timeError = "" },
+                leadingIcon = Icons.Filled.DateRange,
+                modifier = Modifier.fillMaxWidth(),
+                variant = SharedButtonVariant.Outline,
+            )
+            if (timeError.isNotBlank()) {
                 SharedText(
-                    text = "No time slots available for this service.",
-                    variant = SharedTextVariant.Body,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = timeError,
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.error,
                 )
-            } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    timeSlots.forEach { slot ->
-                        SharedChip(
-                            label = slot,
-                            selected = selectedTime == slot,
-                            onSelectedChange = { checked ->
-                                selectedTime = if (checked) slot else ""
-                            },
-                        )
-                    }
-                }
             }
 
             // ── Address ─────────────────────────────────────────────────────

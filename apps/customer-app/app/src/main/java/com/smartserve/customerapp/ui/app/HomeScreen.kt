@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -41,8 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.smartserve.sharedui.SharedAvatar
-import com.smartserve.sharedui.SharedButton
-import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedIconButton
@@ -161,50 +158,64 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            state.topProviders.forEachIndexed { index, provider ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
-                SmartPickRow(
+            state.topProviders.forEach { provider ->
+                SmartPickCard(
                     provider = provider,
                     onNavigateToProvider = onNavigateToProvider,
                 )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
 }
 
 @Composable
-private fun SmartPickRow(
+private fun SmartPickCard(
     provider: CustomerProviderSummary,
     onNavigateToProvider: (providerUid: String, providerName: String) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    SharedCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(12.dp),
+        onClick = { onNavigateToProvider(provider.uid, provider.displayName) },
     ) {
-        SharedAvatar(name = provider.displayName, size = 44.dp)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            SharedText(text = provider.displayName, variant = SharedTextVariant.BodyStrong)
-            val subtitle = if (provider.avgRating > 0)
-                "★ ${"%.1f".format(provider.avgRating)} · ${provider.serviceDescription.take(40)}"
-            else
-                provider.serviceDescription.take(60)
-            SharedText(text = subtitle, variant = SharedTextVariant.Body)
+        Row(verticalAlignment = Alignment.Top) {
+            SharedAvatar(name = provider.displayName, size = 48.dp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                SharedText(text = provider.displayName, variant = SharedTextVariant.BodyStrong)
+                Spacer(modifier = Modifier.height(2.dp))
+                if (provider.avgRating > 0) {
+                    SharedText(
+                        text = "★ ${"%.1f".format(provider.avgRating)}" +
+                            if (provider.totalReviews > 0) " · ${provider.totalReviews} reviews" else "",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    SharedText(
+                        text = "New provider",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (provider.serviceDescription.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SharedText(
+                        text = provider.serviceDescription.take(80),
+                        variant = SharedTextVariant.Body,
+                    )
+                }
+                if (provider.hourlyRate > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SharedText(
+                        text = "From $${provider.hourlyRate.toInt()}/hr",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        SharedButton(
-            text = "Book",
-            onClick = { onNavigateToProvider(provider.uid, provider.displayName) },
-            variant = SharedButtonVariant.Default,
-            modifier = Modifier.height(36.dp),
-        )
     }
 }
 

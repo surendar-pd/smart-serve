@@ -6,6 +6,7 @@ data class CustomerProviderSummary(
     val avgRating: Double,
     val totalReviews: Int,
     val serviceDescription: String,
+    val hourlyRate: Double = 0.0,
 )
 
 data class CustomerServiceListing(

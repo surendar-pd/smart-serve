@@ -64,12 +64,24 @@ fun CategoryListScreen(
                 } else {
                     LazyColumn {
                         itemsIndexed(s.providers) { index, provider ->
-                            val rating = if (provider.avgRating > 0)
-                                "★ ${"%.1f".format(provider.avgRating)} · ${provider.totalReviews} reviews"
-                            else provider.serviceDescription.take(60)
+                            val subtitle = buildString {
+                                if (provider.avgRating > 0) {
+                                    append("★ ${"%.1f".format(provider.avgRating)}")
+                                    if (provider.totalReviews > 0) append(" · ${provider.totalReviews} reviews")
+                                }
+                                if (provider.serviceDescription.isNotBlank()) {
+                                    if (isNotEmpty()) append(" · ")
+                                    append(provider.serviceDescription.take(50))
+                                }
+                                if (provider.hourlyRate > 0) {
+                                    if (isNotEmpty()) append(" · ")
+                                    append("$${provider.hourlyRate.toInt()}/hr")
+                                }
+                                if (isEmpty()) append("New provider")
+                            }
                             SharedListItem(
                                 title = provider.displayName,
-                                supportingText = rating,
+                                supportingText = subtitle,
                                 leadingAvatar = { SharedAvatar(name = provider.displayName, size = 40.dp) },
                                 trailing = {
                                     Icon(

@@ -78,6 +78,7 @@ fun AppScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         providerUid = selectedProviderUid,
                         providerName = selectedProviderName,
+                        categoryId = selectedCategoryId,
                         onBack = { selectedProviderUid = ""; selectedProviderName = "" },
                         onSelectService = { svc -> selectedService = svc },
                     )

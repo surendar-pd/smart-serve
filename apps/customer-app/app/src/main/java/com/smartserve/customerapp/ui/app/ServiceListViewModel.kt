@@ -22,11 +22,11 @@ class ServiceListViewModel @Inject constructor(
     private val _state = MutableStateFlow<ServiceListUiState>(ServiceListUiState.Loading)
     val state: StateFlow<ServiceListUiState> = _state
 
-    fun load(providerUid: String, providerName: String) {
+    fun load(providerUid: String, providerName: String, categoryId: String = "") {
         _state.value = ServiceListUiState.Loading
         viewModelScope.launch {
             try {
-                val services = repo.getServicesForProvider(providerUid, providerName)
+                val services = repo.getServicesForProvider(providerUid, providerName, categoryId)
                 _state.value = ServiceListUiState.Success(services)
             } catch (e: Exception) {
                 _state.value = ServiceListUiState.Error(

@@ -34,13 +34,14 @@ import com.smartserve.sharedui.SharedTextVariant
 fun ServiceListScreen(
     providerUid: String,
     providerName: String,
+    categoryId: String = "",
     onBack: () -> Unit,
     onSelectService: (CustomerServiceListing) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ServiceListViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(providerUid) {
-        viewModel.load(providerUid, providerName)
+    LaunchedEffect(providerUid, categoryId) {
+        viewModel.load(providerUid, providerName, categoryId)
     }
 
     val state by viewModel.state.collectAsState()
