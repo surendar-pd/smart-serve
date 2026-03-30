@@ -57,8 +57,8 @@ fun SharedTextField(
             {
                 SharedIconButton(
                     onClick = { passwordVisible = !passwordVisible },
-                    icon = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                    icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                    contentDescription = if (passwordVisible) "Password is visible. Tap to hide" else "Password is hidden. Tap to show",
                 )
             }
         }

@@ -1,6 +1,7 @@
 package com.smartserve.providerapp.ui.app
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,8 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -19,8 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedLoading
@@ -28,12 +34,14 @@ import com.smartserve.sharedui.SharedRating
 import com.smartserve.sharedui.SharedTabs
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
+import androidx.compose.material3.MaterialTheme
 
 private val tabTitles = listOf("Upcoming", "Completed")
 
 @Composable
 fun BookingsScreen(
     modifier: Modifier = Modifier,
+    onNavigateToRequestDetail: (String) -> Unit = {},
     viewModel: BookingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -74,7 +82,10 @@ fun BookingsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(state.upcomingBookings, key = { it.id }) { booking ->
-                            PastBookingCard(booking = booking)
+                            PastBookingCard(
+                                booking = booking,
+                                onClick = { onNavigateToRequestDetail(booking.id) },
+                            )
                         }
                     }
                 }
@@ -123,18 +134,28 @@ fun BookingsScreen(
 }
 
 @Composable
-private fun PastBookingCard(booking: ServiceRequest) {
-    SharedCard {
+private fun PastBookingCard(
+    booking: ServiceRequest,
+    onClick: (() -> Unit)? = null,
+) {
+    SharedCard(onClick = onClick ?: {}) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(
                 modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically,
             ) {
-                SharedText(
-                    text    = booking.customerFirstName,
-                    variant = SharedTextVariant.BodyStrong,
+                SharedAvatar(
+                    name = booking.customerFirstName.ifBlank { booking.customerInitials },
+                    size = 36.dp,
                 )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    SharedText(
+                        text = booking.customerFirstName,
+                        variant = SharedTextVariant.BodyStrong,
+                    )
+                    SharedText(text = booking.serviceType, variant = SharedTextVariant.Body)
+                }
                 val statusLabel = when (booking.status) {
                     RequestStatus.COMPLETED -> "Completed"
                     RequestStatus.DECLINED  -> "Declined"
@@ -142,14 +163,27 @@ private fun PastBookingCard(booking: ServiceRequest) {
                     RequestStatus.PENDING   -> "Pending"
                     RequestStatus.NEW       -> "New"
                 }
-                SharedText(
-                    text    = statusLabel,
-                    variant = SharedTextVariant.Caption,
-                )
+                val statusBg: Color = when (booking.status) {
+                    RequestStatus.ACTIVE -> MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    RequestStatus.PENDING, RequestStatus.NEW -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+                    RequestStatus.COMPLETED -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f)
+                    RequestStatus.DECLINED -> MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(statusBg)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    SharedText(
+                        text = statusLabel,
+                        variant = SharedTextVariant.Caption,
+                    )
+                }
             }
-            SharedText(text = booking.serviceType, variant = SharedTextVariant.Body)
+            Spacer(Modifier.height(4.dp))
             SharedText(
-                text    = "${booking.date} · ${booking.neighborhood}",
+                text    = "${booking.date} · ${booking.time} · ${booking.neighborhood}",
                 variant = SharedTextVariant.Caption,
             )
             // Only show earnings for completed bookings

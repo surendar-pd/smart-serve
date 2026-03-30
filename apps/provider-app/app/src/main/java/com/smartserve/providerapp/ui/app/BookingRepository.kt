@@ -7,6 +7,7 @@ import com.smartserve.sharedauth.AuthCollections
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,16 +17,21 @@ class BookingRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
 ) {
     private val bookings get() = firestore.collection(AuthCollections.BOOKINGS)
+    private val customerProfiles get() = firestore.collection(AuthCollections.CUSTOMER_PROFILES)
+    private val users get() = firestore.collection(AuthCollections.USERS)
 
     // Real-time stream: new, pending, active requests for this provider
     fun getIncomingRequests(providerId: String): Flow<List<ServiceRequest>> = callbackFlow {
     val sub = bookings
-        .whereEqualTo("provider_id", providerId)
-        .whereIn("status", listOf("new", "pending", "active")) // ✅ now works
+        .whereEqualTo("providerUid", providerId)
+        .whereIn("status", listOf("new", "pending", "active", "confirmed", "CONFIRMED"))
         .addSnapshotListener { snap, err ->
             if (err != null || snap == null) return@addSnapshotListener
             android.util.Log.d("BookingRepo", "Docs found: ${snap.documents.size}")
-            trySend(snap.documents.mapNotNull { it.toServiceRequest() })
+            launch {
+                val parsed = snap.documents.mapNotNull { it.toServiceRequest() }
+                trySend(withCustomerNames(parsed))
+            }
         }
         awaitClose { sub.remove() }
     }
@@ -33,7 +39,7 @@ class BookingRepository @Inject constructor(
     // Real-time stream: completed and declined, newest first
     fun getPastBookings(providerId: String): Flow<List<ServiceRequest>> = callbackFlow {
     val sub = bookings
-        .whereEqualTo("provider_id", providerId)
+        .whereEqualTo("providerUid", providerId)
         .whereIn("status", listOf("completed", "declined"))
         // ── Remove .orderBy("completedAt") — sorts in memory instead ─────────
         .addSnapshotListener { snap, err ->
@@ -43,12 +49,47 @@ class BookingRepository @Inject constructor(
             }
             if (snap == null) return@addSnapshotListener
             android.util.Log.d("BookingRepo", "Past bookings count: ${snap.documents.size}")
-            val sorted = snap.documents
-                .mapNotNull { it.toServiceRequest() }
-                .sortedByDescending { it.completedAt?.seconds ?: it.createdAt?.seconds ?: 0L }
-            trySend(sorted)
+            launch {
+                val sorted = withCustomerNames(
+                    snap.documents.mapNotNull { it.toServiceRequest() }
+                ).sortedByDescending { it.completedAt?.seconds ?: it.createdAt?.seconds ?: 0L }
+                trySend(sorted)
+            }
         }
         awaitClose { sub.remove() }
+    }
+
+    private suspend fun withCustomerNames(requests: List<ServiceRequest>): List<ServiceRequest> {
+        if (requests.isEmpty()) return requests
+        val ids = requests.map { it.customerId }.filter { it.isNotBlank() }.distinct()
+        if (ids.isEmpty()) return requests
+
+        val names = mutableMapOf<String, String>()
+        ids.forEach { customerId ->
+            val name = runCatching {
+                val doc = customerProfiles.document(customerId).get().await()
+                doc.getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: doc.getString("fullName")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: doc.getString("name")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: users.document(customerId).get().await()
+                        .getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+            }.getOrNull()
+            if (!name.isNullOrBlank()) names[customerId] = name
+        }
+
+        return requests.map { request ->
+            val resolved = names[request.customerId]
+            if (resolved.isNullOrBlank()) request
+            else request.copy(
+                customerFirstName = resolved,
+                customerInitials = resolved
+                    .split(" ")
+                    .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+                    .take(2)
+                    .joinToString("")
+                    .ifBlank { request.customerInitials },
+            )
+        }
     }
 
     suspend fun acceptRequest(bookingId: String) {

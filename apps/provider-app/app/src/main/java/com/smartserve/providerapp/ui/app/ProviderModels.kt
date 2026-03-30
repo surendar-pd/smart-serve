@@ -120,47 +120,64 @@ data class ServiceRequest(
 // ── Firestore deserializer ────────────────────────────────────────────────────
 
 fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
-
-    // ── bookingDate Timestamp → "Mar 30, 2026" ────────────────────────────────
-    val dateString = getTimestamp("bookingDate")?.let {
-        SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it.toDate())
-    } ?: ""
-
-    // ── serviceId "plumbing_repair" → "Plumbing Repair" ──────────────────────
-    val serviceDisplay = getString("serviceId")
-        ?.replace("_", " ")
-        ?.split(" ")
-        ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+    val dateString = getString("date")?.takeIf { it.isNotBlank() }
+        ?: getTimestamp("bookingDate")?.let {
+            SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it.toDate())
+        }
         ?: ""
 
-    // ── customer_id is a plain string ID in your schema ───────────────────────
-    val customerId = getString("customer_id") ?: return null
+    val serviceDisplay = getString("serviceName")?.takeIf { it.isNotBlank() }
+        ?: getString("serviceType")?.takeIf { it.isNotBlank() }
+        ?: getString("serviceId")
+            ?.replace("_", " ")
+            ?.split(" ")
+            ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+        ?: ""
 
-    // ── derive initials from customerId until real name lookup is added ───────
-    val displayName   = customerId.replace("_", " ")
+    val customerId = getString("customerId")
+        ?: getString("customer_id")
+        ?: return null
+
+    val displayName = getString("customerName")
+        ?.takeIf { it.isNotBlank() }
+        ?: getString("customerFirstName")?.takeIf { it.isNotBlank() }
+        ?: "Customer"
+    val initials = displayName
         .split(" ")
-        .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-    val initials = customerId
-        .split("_")
         .mapNotNull { it.firstOrNull()?.uppercaseChar() }
         .take(2)
         .joinToString("")
         .ifBlank { customerId.take(2).uppercase() }
 
+    val parsedEarnings = getLong("earnings")?.toInt()
+        ?: getDouble("earnings")?.toInt()
+        ?: getString("price")
+            ?.filter { it.isDigit() }
+            ?.toIntOrNull()
+        ?: getLong("price")?.toInt()
+        ?: getDouble("price")?.toInt()
+        ?: 0
+
+    val statusRaw = getString("status")
+    val normalizedStatus = when (statusRaw?.trim()?.lowercase()) {
+        "confirmed" -> "active"
+        else -> statusRaw
+    }
+
     ServiceRequest(
         id                  = id,
-        providerId          = getString("provider_id") ?: "",
+        providerId          = getString("providerUid") ?: getString("provider_id") ?: "",
         customerId          = customerId,
-        customerFirstName   = displayName,          // derived from customer_id
-        customerInitials    = initials,             // derived from customer_id
-        serviceType         = serviceDisplay,        // from serviceId field
-        date                = dateString,            // from bookingDate Timestamp
-        time                = getString("timeSlot") ?: "",   // timeSlot not time
-        neighborhood        = getString("address") ?: "",    // address not neighborhood
+        customerFirstName   = displayName,
+        customerInitials    = initials,
+        serviceType         = serviceDisplay,
+        date                = dateString,
+        time                = getString("time") ?: getString("timeSlot") ?: "",
+        neighborhood        = getString("address") ?: getString("neighborhood") ?: "",
         specialInstructions = getString("specialInstructions") ?: "",
-        status              = RequestStatus.from(getString("status")),
+        status              = RequestStatus.from(normalizedStatus),
         customerRating      = getDouble("customerRating")?.toFloat(),
-        earnings            = getLong("price")?.toInt() ?: 0, // price not earnings
+        earnings            = parsedEarnings,
         createdAt           = getTimestamp("createdAt"),
         completedAt         = getTimestamp("completedAt"),
         callLoggedAt        = getTimestamp("callLoggedAt"),
