@@ -5,6 +5,8 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.smartserve.sharedauth.AuthCollections
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,6 +23,10 @@ class CustomerServicesRepository @Inject constructor(
     private val categories get() = firestore.collection(AuthCollections.CATEGORIES)
     private val bookings   get() = firestore.collection("bookings")
     private val customerProfiles get() = firestore.collection(AuthCollections.CUSTOMER_PROFILES)
+
+    /** In-memory cache so BookingViewModel reacts instantly when profile saves a new address. */
+    private val _homeAddressCache = MutableStateFlow("")
+    val homeAddressFlow: StateFlow<String> = _homeAddressCache
 
     /**
      * Returns providers who have at least one active service in [categoryId].
@@ -255,12 +261,19 @@ class CustomerServicesRepository @Inject constructor(
 
     // ── Customer-side helpers ─────────────────────────────────────────────────
 
-    /** Fetches the home address saved in the customer's profile, or empty string. */
+    /** Fetches the home address saved in the customer's profile, or empty string. Also seeds [homeAddressFlow]. */
     suspend fun getCustomerHomeAddress(): String {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return ""
         return runCatching {
-            customerProfiles.document(uid).get().await().getString("homeAddress").orEmpty()
+            val addr = customerProfiles.document(uid).get().await().getString("homeAddress").orEmpty()
+            _homeAddressCache.value = addr
+            addr
         }.getOrDefault("")
+    }
+
+    /** Updates the in-memory home-address cache — call after a successful profile save. */
+    fun setHomeAddressCache(address: String) {
+        _homeAddressCache.value = address
     }
 
     /**

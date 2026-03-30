@@ -96,6 +96,37 @@ class NominatimGeocoder @Inject constructor() {
             }.getOrNull()
         }
 
+    /** Returns up to [limit] address candidates for [query] — used for autocomplete. */
+    suspend fun searchSuggestions(query: String, limit: Int = 5): List<GeoResult> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val q = URLEncoder.encode("$query, Ottawa, Ontario, Canada", "UTF-8")
+                val url = URL(
+                    "https://nominatim.openstreetmap.org/search" +
+                    "?q=$q&format=json&limit=$limit&addressdetails=1"
+                )
+                val conn = url.openConnection()
+                conn.setRequestProperty("User-Agent", USER_AGENT)
+                conn.connectTimeout = 8_000
+                conn.readTimeout    = 8_000
+                val arr = JSONArray(conn.getInputStream().bufferedReader().readText())
+                (0 until arr.length()).map { i ->
+                    val obj  = arr.getJSONObject(i)
+                    val lat  = obj.getString("lat").toDouble()
+                    val lon  = obj.getString("lon").toDouble()
+                    val full = obj.optString("display_name", "")
+                    val addr = obj.optJSONObject("address")
+                    GeoResult(
+                        shortLabel  = buildShortLabel(addr, full),
+                        fullAddress = full,
+                        lat         = lat,
+                        lon         = lon,
+                        isInOttawa  = isOttawa(lat, lon, full),
+                    )
+                }
+            }.getOrDefault(emptyList())
+        }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /** Build a human-readable short label: "123 Main St, Kanata" */

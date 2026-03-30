@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -290,6 +292,7 @@ data class CustomerProfileUiState(
     val pushNotifications: Boolean = true,
     val addressValidState: AddressValidState = AddressValidState.Idle,
     val addressGeoResult: GeoResult? = null,
+    val addressSuggestions: List<GeoResult> = emptyList(),
 )
 
 @HiltViewModel
@@ -309,8 +312,38 @@ class CustomerProfileViewModel @Inject constructor(
 
     fun onPhotoSelected(uri: Uri?) = _state.update { it.copy(photoUri = uri) }
     fun onPhoneChange(v: String) = _state.update { it.copy(phone = v) }
-    fun onHomeAddressChange(v: String) = _state.update {
-        it.copy(homeAddress = v, addressValidState = AddressValidState.Idle, addressGeoResult = null)
+    private var suggestionJob: Job? = null
+
+    fun onHomeAddressChange(v: String) {
+        _state.update {
+            it.copy(
+                homeAddress        = v,
+                addressValidState  = AddressValidState.Idle,
+                addressGeoResult   = null,
+                addressSuggestions = emptyList(),
+            )
+        }
+        suggestionJob?.cancel()
+        if (v.trim().length >= 4) {
+            suggestionJob = viewModelScope.launch {
+                delay(450L)
+                val results = geocoder.searchSuggestions(v.trim())
+                _state.update { it.copy(addressSuggestions = results) }
+            }
+        }
+    }
+
+    fun onSuggestionSelected(result: GeoResult) {
+        suggestionJob?.cancel()
+        _state.update {
+            it.copy(
+                homeAddress        = result.shortLabel,
+                addressSuggestions = emptyList(),
+                addressValidState  = if (result.isInOttawa) AddressValidState.Valid
+                                     else AddressValidState.NotOttawa,
+                addressGeoResult   = result,
+            )
+        }
     }
 
     fun validateAddress() = viewModelScope.launch {

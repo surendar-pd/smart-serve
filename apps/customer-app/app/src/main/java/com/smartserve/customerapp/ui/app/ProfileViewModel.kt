@@ -9,6 +9,8 @@ import com.google.firebase.firestore.SetOptions
 import com.smartserve.sharedauth.AuthCollections
 import com.smartserve.sharedauth.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +35,7 @@ data class ProfileUiState(
     val savedOk: Boolean = false,
     val addressValidState: AddressValidState = AddressValidState.Idle,
     val addressGeoResult: GeoResult? = null,
+    val addressSuggestions: List<GeoResult> = emptyList(),
 )
 
 @HiltViewModel
@@ -41,6 +44,7 @@ class ProfileViewModel @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val authRepository: AuthRepository,
     private val geocoder: NominatimGeocoder,
+    private val repo: CustomerServicesRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -74,8 +78,38 @@ class ProfileViewModel @Inject constructor(
 
     fun onNameChange(v: String) = _state.update { it.copy(name = v) }
     fun onPhoneChange(v: String) = _state.update { it.copy(phone = v) }
-    fun onAddressChange(v: String) = _state.update {
-        it.copy(homeAddress = v, addressValidState = AddressValidState.Idle, addressGeoResult = null)
+    private var suggestionJob: Job? = null
+
+    fun onAddressChange(v: String) {
+        _state.update {
+            it.copy(
+                homeAddress       = v,
+                addressValidState = AddressValidState.Idle,
+                addressGeoResult  = null,
+                addressSuggestions = emptyList(),
+            )
+        }
+        suggestionJob?.cancel()
+        if (v.trim().length >= 4) {
+            suggestionJob = viewModelScope.launch {
+                delay(450L)
+                val results = geocoder.searchSuggestions(v.trim())
+                _state.update { it.copy(addressSuggestions = results) }
+            }
+        }
+    }
+
+    fun onSuggestionSelected(result: GeoResult) {
+        suggestionJob?.cancel()
+        _state.update {
+            it.copy(
+                homeAddress        = result.shortLabel,
+                addressSuggestions = emptyList(),
+                addressValidState  = if (result.isInOttawa) AddressValidState.Valid
+                                     else AddressValidState.NotOttawa,
+                addressGeoResult   = result,
+            )
+        }
     }
 
     fun validateAddress() = viewModelScope.launch {
@@ -125,6 +159,7 @@ class ProfileViewModel @Inject constructor(
                     ),
                     SetOptions.merge(),
                 ).await()
+            repo.setHomeAddressCache(s.homeAddress)
             _state.update { it.copy(isSaving = false, savedOk = true) }
         } catch (e: Exception) {
             _state.update { it.copy(isSaving = false, errorMessage = e.localizedMessage) }

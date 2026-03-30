@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -39,20 +41,33 @@ class BookingViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Initial load from Firestore (also seeds repo.homeAddressFlow)
             val saved = repo.getCustomerHomeAddress()
             _homeAddress.value = saved
-            // Forward-geocode the saved address to pre-position the map
-            if (saved.isNotBlank()) {
-                _isGeocoding.value = true
-                val result = geocoder.forwardGeocode(saved)
-                if (result != null) {
-                    _pinLat.value   = result.lat
-                    _pinLon.value   = result.lon
-                    _geoResult.value = result
+            if (saved.isNotBlank()) geocodeAndPin(saved)
+
+            // React to address changes made from ProfileScreen while this VM is alive
+            repo.homeAddressFlow
+                .drop(1)                // skip the value we just set above
+                .distinctUntilChanged()
+                .collect { newAddr ->
+                    if (newAddr.isNotBlank() && newAddr != _homeAddress.value) {
+                        _homeAddress.value = newAddr
+                        geocodeAndPin(newAddr)
+                    }
                 }
-                _isGeocoding.value = false
-            }
         }
+    }
+
+    private suspend fun geocodeAndPin(address: String) {
+        _isGeocoding.value = true
+        val result = geocoder.forwardGeocode(address)
+        if (result != null) {
+            _pinLat.value    = result.lat
+            _pinLon.value    = result.lon
+            _geoResult.value = result
+        }
+        _isGeocoding.value = false
     }
 
     /** Called when the user taps the map — triggers reverse geocoding. */

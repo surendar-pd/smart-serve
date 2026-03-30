@@ -35,6 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Surface
 import com.smartserve.sharedauth.AddressValidState
 import com.smartserve.sharedauth.AddressValidationStatusRow
 import com.smartserve.sharedauth.GeoResult
@@ -152,6 +155,48 @@ fun ProfileScreen(
                 )
             }
 
+            // Autocomplete suggestions (appear while typing, disappear when one is picked)
+            if (state.addressSuggestions.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    tonalElevation = 4.dp,
+                    shadowElevation = 2.dp,
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        state.addressSuggestions.forEachIndexed { index, suggestion ->
+                            if (index > 0) {
+                                androidx.compose.material3.HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.onSuggestionSelected(suggestion) }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    SharedText(
+                                        text = suggestion.shortLabel,
+                                        variant = SharedTextVariant.Body,
+                                    )
+                                    if (!suggestion.isInOttawa) {
+                                        SharedText(
+                                            text = "Outside Ottawa area",
+                                            variant = SharedTextVariant.Caption,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             AddressValidationStatusRow(
                 state = state.addressValidState,
                 geoResult = state.addressGeoResult,
@@ -165,7 +210,7 @@ fun ProfileScreen(
                     lon = state.addressGeoResult!!.lon,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(130.dp)
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
                 )
             }

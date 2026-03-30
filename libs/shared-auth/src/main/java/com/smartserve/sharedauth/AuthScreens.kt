@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Surface
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -582,6 +583,48 @@ fun CustomerProfileSetupScreen(
                 loading = state.addressValidState == AddressValidState.Validating,
                 variant = SharedButtonVariant.Outline,
             )
+        }
+
+        // Autocomplete suggestions
+        if (state.addressSuggestions.isNotEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                tonalElevation = 4.dp,
+                shadowElevation = 2.dp,
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    state.addressSuggestions.forEachIndexed { index, suggestion ->
+                        if (index > 0) {
+                            androidx.compose.material3.HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.onSuggestionSelected(suggestion) }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                SharedText(
+                                    text = suggestion.shortLabel,
+                                    variant = SharedTextVariant.Body,
+                                )
+                                if (!suggestion.isInOttawa) {
+                                    SharedText(
+                                        text = "Outside Ottawa area",
+                                        variant = SharedTextVariant.Caption,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
         }
 
         AddressValidationStatusRow(state.addressValidState, state.addressGeoResult)
