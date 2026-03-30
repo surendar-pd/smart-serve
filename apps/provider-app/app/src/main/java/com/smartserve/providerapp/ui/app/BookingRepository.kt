@@ -18,26 +18,35 @@ class BookingRepository @Inject constructor(
 
     // Real-time stream: new, pending, active requests for this provider
     fun getIncomingRequests(providerId: String): Flow<List<ServiceRequest>> = callbackFlow {
-        val sub = bookings
-            .whereEqualTo("providerId", providerId)
-            .whereIn("status", listOf("new", "pending", "active"))
-            .addSnapshotListener { snap, err ->
-                if (err != null || snap == null) return@addSnapshotListener
-                trySend(snap.documents.mapNotNull { it.toServiceRequest() })
-            }
+    val sub = bookings
+        .whereEqualTo("provider_id", providerId)
+        .whereIn("status", listOf("new", "pending", "active")) // ✅ now works
+        .addSnapshotListener { snap, err ->
+            if (err != null || snap == null) return@addSnapshotListener
+            android.util.Log.d("BookingRepo", "Docs found: ${snap.documents.size}")
+            trySend(snap.documents.mapNotNull { it.toServiceRequest() })
+        }
         awaitClose { sub.remove() }
     }
 
     // Real-time stream: completed and declined, newest first
     fun getPastBookings(providerId: String): Flow<List<ServiceRequest>> = callbackFlow {
-        val sub = bookings
-            .whereEqualTo("providerId", providerId)
-            .whereIn("status", listOf("completed", "declined"))
-            .orderBy("completedAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snap, err ->
-                if (err != null || snap == null) return@addSnapshotListener
-                trySend(snap.documents.mapNotNull { it.toServiceRequest() })
+    val sub = bookings
+        .whereEqualTo("provider_id", providerId)
+        .whereIn("status", listOf("completed", "declined"))
+        // ── Remove .orderBy("completedAt") — sorts in memory instead ─────────
+        .addSnapshotListener { snap, err ->
+            if (err != null) {
+                android.util.Log.e("BookingRepo", "getPastBookings error: ${err.message}")
+                return@addSnapshotListener
             }
+            if (snap == null) return@addSnapshotListener
+            android.util.Log.d("BookingRepo", "Past bookings count: ${snap.documents.size}")
+            val sorted = snap.documents
+                .mapNotNull { it.toServiceRequest() }
+                .sortedByDescending { it.completedAt?.seconds ?: it.createdAt?.seconds ?: 0L }
+            trySend(sorted)
+        }
         awaitClose { sub.remove() }
     }
 

@@ -20,6 +20,7 @@ private sealed interface HomeStack {
     object Home : HomeStack
     data class RequestDetail(val bookingId: String) : HomeStack
     data class ActiveJob(val bookingId: String) : HomeStack
+    data class Chat(val bookingId: String, val returnTo: HomeStack) : HomeStack
 }
 
 @Composable
@@ -56,6 +57,12 @@ fun AppScreen(onLogout: () -> Unit) {
                         onNavigateToActiveJob = { bookingId ->
                             homeStack = HomeStack.ActiveJob(bookingId)
                         },
+                        onNavigateToChat      = { bookingId ->
+                            homeStack = HomeStack.Chat(
+                                bookingId = bookingId,
+                                returnTo  = stack,
+                            )
+                        },
                     )
                     is HomeStack.ActiveJob -> ActiveJobScreen(
                         bookingId            = stack.bookingId,
@@ -64,15 +71,24 @@ fun AppScreen(onLogout: () -> Unit) {
                             selectedTabIndex = 1
                             homeStack = HomeStack.Home
                         },
+                        onNavigateToChat     = { bookingId ->
+                            homeStack = HomeStack.Chat(
+                                bookingId = bookingId,
+                                returnTo  = stack,
+                            )
+                        },
+                    )
+                    is HomeStack.Chat -> ChatScreen(
+                        bookingId = stack.bookingId,
+                        onBack    = { homeStack = stack.returnTo },
+                        bottomPadding = innerPadding.calculateBottomPadding(),
+                        topPadding     = innerPadding.calculateTopPadding(),
                     )
                 }
                 1 -> BookingsScreen(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
-                2 -> ProfileScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    onLogout = onLogout,
-                )
+                2 -> ProfileScreen(onLogout = onLogout)
             }
         },
     )
