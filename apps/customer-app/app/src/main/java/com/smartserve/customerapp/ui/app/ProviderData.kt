@@ -6,6 +6,7 @@ data class CartItem(
     val providerName: String,
     val serviceName: String,
     val price: String,
+    val address: String = "",
     val date: String = "",
     val time: String = "",
     val timeRange: String = "",

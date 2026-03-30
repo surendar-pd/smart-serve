@@ -90,4 +90,7 @@ dependencies {
     // Google Maps
     implementation("com.google.maps.android:maps-compose:4.3.3")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
+
+    // OpenStreetMap (address picker — no API key required)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 }
