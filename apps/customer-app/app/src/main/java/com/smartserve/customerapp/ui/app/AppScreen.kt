@@ -31,10 +31,8 @@ fun AppScreen(
     var selectedProviderUid by remember { mutableStateOf("") }
     var selectedProviderName by remember { mutableStateOf("") }
 
-    // Booking navigation
-    var bookingProviderName by remember { mutableStateOf("") }
-    var bookingService by remember { mutableStateOf("") }
-    var bookingPrice by remember { mutableStateOf("") }
+    // Booking navigation — holds the selected service (carries all availability info)
+    var selectedService by remember { mutableStateOf<CustomerServiceListing?>(null) }
 
     var showProfile by remember { mutableStateOf(false) }
     var cartItems by remember { mutableStateOf(listOf<CartItem>()) }
@@ -47,9 +45,7 @@ fun AppScreen(
     )
 
     fun clearHomeStack() {
-        bookingProviderName = ""
-        bookingService = ""
-        bookingPrice = ""
+        selectedService = null
         selectedProviderUid = ""
         selectedProviderName = ""
         selectedCategoryId = ""
@@ -67,21 +63,13 @@ fun AppScreen(
         content = { innerPadding ->
             when (selectedTabIndex) {
                 0 -> when {
-                    bookingProviderName.isNotEmpty() -> BookingScreen(
+                    selectedService != null -> BookingScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        providerName = bookingProviderName,
-                        serviceName = bookingService,
-                        price = bookingPrice,
-                        onBack = {
-                            bookingProviderName = ""
-                            bookingService = ""
-                            bookingPrice = ""
-                        },
+                        service = selectedService!!,
+                        onBack = { selectedService = null },
                         onAddToCart = { item ->
                             cartItems = cartItems + item
-                            bookingProviderName = ""
-                            bookingService = ""
-                            bookingPrice = ""
+                            selectedService = null
                             selectedProviderUid = ""
                             selectedTabIndex = 2
                         },
@@ -91,11 +79,7 @@ fun AppScreen(
                         providerUid = selectedProviderUid,
                         providerName = selectedProviderName,
                         onBack = { selectedProviderUid = ""; selectedProviderName = "" },
-                        onSelectService = { prov, svc, price ->
-                            bookingProviderName = prov
-                            bookingService = svc
-                            bookingPrice = price
-                        },
+                        onSelectService = { svc -> selectedService = svc },
                     )
                     selectedCategoryId.isNotEmpty() -> CategoryListScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),

@@ -2,6 +2,8 @@ package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,31 +43,89 @@ import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Convert UTC-midnight millis (from DatePicker) to a short day name: "Mon", "Tue", etc. */
+private fun Long.toDayOfWeekShort(): String {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    cal.timeInMillis = this
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.MONDAY    -> "Mon"
+        Calendar.TUESDAY   -> "Tue"
+        Calendar.WEDNESDAY -> "Wed"
+        Calendar.THURSDAY  -> "Thu"
+        Calendar.FRIDAY    -> "Fri"
+        Calendar.SATURDAY  -> "Sat"
+        Calendar.SUNDAY    -> "Sun"
+        else               -> ""
+    }
+}
+
+/**
+ * Generate hourly time-slot labels between [start] and [end] (both "HH:mm" format).
+ * Example: "09:00" .. "17:00"  →  ["9 AM", "10 AM", "11 AM", "12 PM", "1 PM", …, "4 PM"]
+ */
+private fun generateTimeSlots(start: String, end: String): List<String> {
+    val startHour = start.substringBefore(":").toIntOrNull() ?: 9
+    val endHour   = end.substringBefore(":").toIntOrNull()   ?: 17
+    return (startHour until endHour).map { h ->
+        when {
+            h == 0    -> "12 AM"
+            h < 12    -> "$h AM"
+            h == 12   -> "12 PM"
+            else      -> "${h - 12} PM"
+        }
+    }
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BookingScreen(
-    providerName: String,
-    serviceName: String,
-    price: String,
+    service: CustomerServiceListing,
     onBack: () -> Unit,
     onAddToCart: (CartItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val providerName = service.providerName
+    val serviceName  = service.title
+    val priceLabel   = "$${service.hourlyRate.toInt()}/hr"
+
+    val availDays  = service.availabilityDays   // e.g. ["Mon", "Wed", "Fri"]
+    val timeSlots  = remember(service.availabilityStart, service.availabilityEnd) {
+        generateTimeSlots(service.availabilityStart, service.availabilityEnd)
+    }
+
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("123 Main St, Ottawa") }
-    var notes by remember { mutableStateOf("") }
-    var timeRange by remember { mutableStateOf("") }
+    var address      by remember { mutableStateOf("123 Main St, Ottawa") }
+    var notes        by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    // ── Date picker ──────────────────────────────────────────────────────────
     if (showDatePicker) {
-        val today = System.currentTimeMillis()
+        val todayUtc = run {
+            // UTC midnight of today so we never block today itself
+            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            cal.timeInMillis
+        }
         val datePickerState = rememberDatePickerState(
             selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= today
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    if (utcTimeMillis < todayUtc) return false           // no past dates
+                    if (availDays.isEmpty()) return true                  // no restriction
+                    return utcTimeMillis.toDayOfWeekShort() in availDays  // only provider days
+                }
             },
         )
         DatePickerDialog(
@@ -72,7 +133,7 @@ fun BookingScreen(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                        selectedDate = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
                             .format(Date(millis))
                     }
                     showDatePicker = false
@@ -86,10 +147,11 @@ fun BookingScreen(
         }
     }
 
+    // ── Layout ───────────────────────────────────────────────────────────────
     Column(modifier = modifier.fillMaxSize()) {
         CustomerStackHeader(
             title = "Book service",
-            subtitle = "$serviceName with $providerName · $price",
+            subtitle = "$serviceName with $providerName · $priceLabel",
             onBack = onBack,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
@@ -105,7 +167,15 @@ fun BookingScreen(
 
             SharedProgress(progress = 0.5f)
 
+            // ── Date ────────────────────────────────────────────────────────
             SharedText(text = "Select Date", variant = SharedTextVariant.Label)
+            if (availDays.isNotEmpty()) {
+                SharedText(
+                    text = "Available: ${availDays.joinToString(", ")}",
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             SharedButton(
                 text = if (selectedDate.isEmpty()) "Choose a date" else selectedDate,
                 onClick = { showDatePicker = true },
@@ -114,38 +184,48 @@ fun BookingScreen(
                 variant = SharedButtonVariant.Outline,
             )
 
+            // ── Time ────────────────────────────────────────────────────────
             SharedText(text = "Select Time", variant = SharedTextVariant.Label)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("9 AM", "12 PM", "3 PM").forEach { time ->
-                    SharedChip(
-                        label = time,
-                        selected = selectedTime == time,
-                        onSelectedChange = { checked ->
-                            selectedTime = if (checked) time else ""
-                        },
-                    )
+            if (timeSlots.isEmpty()) {
+                SharedText(
+                    text = "No time slots available for this service.",
+                    variant = SharedTextVariant.Body,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    timeSlots.forEach { slot ->
+                        SharedChip(
+                            label = slot,
+                            selected = selectedTime == slot,
+                            onSelectedChange = { checked ->
+                                selectedTime = if (checked) slot else ""
+                            },
+                        )
+                    }
                 }
             }
 
+            // ── Address ─────────────────────────────────────────────────────
             SharedTextField(
                 value = address,
                 onValueChange = { address = it },
                 label = "Address",
+                modifier = Modifier.fillMaxWidth(),
             )
 
+            // ── Notes ───────────────────────────────────────────────────────
             SharedTextArea(
                 value = notes,
                 onValueChange = { notes = it },
                 placeholder = "Any special instructions...",
+                modifier = Modifier.fillMaxWidth(),
             )
 
-            SharedTextField(
-                value = timeRange,
-                onValueChange = { timeRange = it },
-                label = "Available time window",
-                placeholder = "e.g. 9 AM – 1 PM",
-            )
-
+            // ── Provider summary ─────────────────────────────────────────────
             SharedText(text = "Provider", variant = SharedTextVariant.Label)
             SharedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -156,7 +236,11 @@ fun BookingScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         SharedText(text = providerName, variant = SharedTextVariant.BodyStrong)
-                        SharedText(text = "⭐ 4.8 · Ottawa, ON", variant = SharedTextVariant.Body)
+                        SharedText(
+                            text = priceLabel,
+                            variant = SharedTextVariant.Body,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
             }
@@ -168,11 +252,10 @@ fun BookingScreen(
                     onAddToCart(
                         CartItem(
                             providerName = providerName,
-                            serviceName = serviceName,
-                            price = price,
-                            date = selectedDate,
-                            time = selectedTime,
-                            timeRange = timeRange,
+                            serviceName  = serviceName,
+                            price        = priceLabel,
+                            date         = selectedDate,
+                            time         = selectedTime,
                         )
                     )
                 },

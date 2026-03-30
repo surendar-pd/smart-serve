@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.sharedui.SharedAvatar
-import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedErrorState
@@ -37,7 +35,7 @@ fun ServiceListScreen(
     providerUid: String,
     providerName: String,
     onBack: () -> Unit,
-    onSelectService: (providerName: String, serviceName: String, price: String) -> Unit,
+    onSelectService: (CustomerServiceListing) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ServiceListViewModel = hiltViewModel(),
 ) {
@@ -77,36 +75,41 @@ fun ServiceListScreen(
                     ) {
                         items(s.services) { service ->
                             val priceLabel = "$${service.hourlyRate.toInt()}/hr"
-                            val availabilityHint = "${service.availabilityStart}–${service.availabilityEnd}"
+                            val daysHint = service.availabilityDays.joinToString(", ")
+                            val hoursHint = "${service.availabilityStart}–${service.availabilityEnd}"
+                            // Tap anywhere on the card to proceed to booking
                             SharedCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 contentPadding = PaddingValues(12.dp),
+                                onClick = { onSelectService(service) },
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     SharedAvatar(name = service.title, size = 48.dp)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        SharedText(text = service.title, variant = SharedTextVariant.BodyStrong)
+                                        SharedText(
+                                            text = service.title,
+                                            variant = SharedTextVariant.BodyStrong,
+                                        )
                                         if (service.description.isNotBlank()) {
-                                            SharedText(text = service.description, variant = SharedTextVariant.Body)
+                                            SharedText(
+                                                text = service.description,
+                                                variant = SharedTextVariant.Body,
+                                            )
                                         }
                                         SharedText(
                                             text = priceLabel,
                                             variant = SharedTextVariant.BodyStrong,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
-                                        SharedText(
-                                            text = availabilityHint,
-                                            variant = SharedTextVariant.Caption,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                        if (daysHint.isNotBlank()) {
+                                            SharedText(
+                                                text = "$daysHint · $hoursHint",
+                                                variant = SharedTextVariant.Caption,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    SharedButton(
-                                        text = "Add to Cart",
-                                        onClick = { onSelectService(providerName, service.title, priceLabel) },
-                                        modifier = Modifier.height(36.dp),
-                                    )
                                 }
                             }
                         }

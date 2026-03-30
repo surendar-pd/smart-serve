@@ -165,14 +165,32 @@ class CustomerServicesRepository @Inject constructor(
      * Returns top providers sorted by avgRating.
      * Sorts in-memory to avoid requiring a Firestore index and to include
      * providers whose avgRating field may not yet be set.
+     * For providers with a blank displayName, falls back to the title of their
+     * onboarding service document (doc.id == providerUid).
      */
     suspend fun getTopProviders(limit: Int = 5): List<CustomerProviderSummary> {
         return try {
-            // Fetch all provider profiles (no orderBy → no index required, includes new providers)
+            // Fetch all provider profiles (no orderBy → no index required)
             val snap = profiles.limit(50).get().await()
             Log.d(TAG, "getTopProviders: ${snap.size()} profiles fetched")
+
+            // For any profile with a blank displayName, look up their onboarding service
+            // (document ID == provider UID) to use its title as the name.
+            val blankNameUids = snap.documents
+                .filter { doc -> doc.getString("displayName").isNullOrBlank() }
+                .map { it.id }
+
+            val onboardingTitleByUid: Map<String, String> = blankNameUids.associate { uid ->
+                val title = try {
+                    services.document(uid).get().await()
+                        .getString("title")?.trim().orEmpty()
+                        .let { if (it == "Service") "" else it }
+                } catch (_: Exception) { "" }
+                uid to title
+            }
+
             snap.documents
-                .mapNotNull { it.toCustomerProviderSummary() }
+                .mapNotNull { it.toCustomerProviderSummary(fallbackName = onboardingTitleByUid[it.id] ?: "") }
                 .sortedByDescending { it.avgRating }
                 .take(limit)
         } catch (e: Exception) {
@@ -185,6 +203,7 @@ class CustomerServicesRepository @Inject constructor(
 /**
  * [fallbackName] is used when [displayName] field is blank — callers can pass the
  * onboarding service title (service doc where doc.id == providerUid) as the name.
+ * Falls back to a short UID-based placeholder so providers always appear.
  */
 private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSummary(
     fallbackName: String = "",
@@ -192,8 +211,8 @@ private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSum
     val uid = id.ifBlank { return null }
     val displayName = getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
         ?: fallbackName.takeIf { it.isNotBlank() }
-        ?: getString("email")?.substringBefore("@")?.takeIf { it.isNotBlank() }
-        ?: return null   // Don't surface a provider whose name we cannot resolve at all
+        ?: getString("name")?.trim()?.takeIf { it.isNotBlank() }
+        ?: "Provider ${uid.take(6)}"
     return CustomerProviderSummary(
         uid = uid,
         displayName = displayName,
