@@ -1,6 +1,8 @@
 package com.smartserve.customerapp.ui.app
 
 import android.util.Log
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.smartserve.sharedauth.AuthCollections
 import kotlinx.coroutines.tasks.await
@@ -14,9 +16,11 @@ class CustomerServicesRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
 ) {
 
-    private val services get() = firestore.collection(AuthCollections.SERVICES)
-    private val profiles get() = firestore.collection(AuthCollections.PROVIDER_PROFILES)
+    private val services   get() = firestore.collection(AuthCollections.SERVICES)
+    private val profiles   get() = firestore.collection(AuthCollections.PROVIDER_PROFILES)
     private val categories get() = firestore.collection(AuthCollections.CATEGORIES)
+    private val bookings   get() = firestore.collection("bookings")
+    private val customerProfiles get() = firestore.collection(AuthCollections.CUSTOMER_PROFILES)
 
     /**
      * Returns providers who have at least one active service in [categoryId].
@@ -247,6 +251,66 @@ class CustomerServicesRepository @Inject constructor(
             Log.e(TAG, "getTopProviders failed", e)
             emptyList()
         }
+    }
+
+    // ── Customer-side helpers ─────────────────────────────────────────────────
+
+    /** Fetches the home address saved in the customer's profile, or empty string. */
+    suspend fun getCustomerHomeAddress(): String {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return ""
+        return runCatching {
+            customerProfiles.document(uid).get().await().getString("homeAddress").orEmpty()
+        }.getOrDefault("")
+    }
+
+    /**
+     * Writes each [CartItem] as a pending booking document in the `bookings` collection.
+     * Uses a batch so all-or-nothing semantics apply.
+     */
+    suspend fun confirmBookings(items: List<CartItem>): Result<Unit> = runCatching {
+        val customerId = FirebaseAuth.getInstance().currentUser?.uid
+            ?: error("Customer not signed in")
+        val batch = firestore.batch()
+        items.forEach { item ->
+            val doc = bookings.document()
+            batch.set(
+                doc,
+                mapOf(
+                    "customerId"   to customerId,
+                    "providerUid"  to item.providerUid,
+                    "providerName" to item.providerName,
+                    "serviceName"  to item.serviceName,
+                    "price"        to item.price,
+                    "date"         to item.date,
+                    "time"         to item.time,
+                    "status"       to "pending",
+                    "createdAt"    to Timestamp.now(),
+                ),
+            )
+        }
+        batch.commit().await()
+    }
+
+    /** Returns all bookings for the currently signed-in customer, newest first. */
+    suspend fun getMyBookings(): List<CustomerBooking> {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return emptyList()
+        return runCatching {
+            bookings.whereEqualTo("customerId", uid).get().await().documents
+                .mapNotNull { doc ->
+                    CustomerBooking(
+                        id           = doc.id,
+                        providerName = doc.getString("providerName") ?: "",
+                        serviceName  = doc.getString("serviceName") ?: "",
+                        price        = doc.getString("price") ?: "",
+                        date         = doc.getString("date") ?: "",
+                        time         = doc.getString("time") ?: "",
+                        status       = doc.getString("status") ?: "pending",
+                        createdAtMillis = doc.getTimestamp("createdAt")
+                            ?.toDate()?.time ?: 0L,
+                    )
+                }
+                .sortedByDescending { it.createdAtMillis }
+        }.getOrDefault(emptyList())
     }
 }
 

@@ -33,7 +33,7 @@ import com.smartserve.sharedui.SharedTextVariant
 @Composable
 fun SearchScreen(
     modifier: Modifier = Modifier,
-    onProviderClick: (providerUid: String, providerName: String) -> Unit = { _, _ -> },
+    onResultClick: (CustomerServiceListing) -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(Unit) { viewModel.loadAll() }
@@ -110,7 +110,7 @@ fun SearchScreen(
                                         )
                                     },
                                     showDivider = index > 0,
-                                    onClick = { onProviderClick(service.providerUid, service.providerName) },
+                                    onClick = { onResultClick(service) },
                                 )
                             }
                         }

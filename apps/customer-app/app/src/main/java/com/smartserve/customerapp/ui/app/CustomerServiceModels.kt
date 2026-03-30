@@ -25,3 +25,14 @@ data class CustomerServiceListing(
     val availabilityStart: String,
     val availabilityEnd: String,
 )
+
+data class CustomerBooking(
+    val id: String,
+    val providerName: String,
+    val serviceName: String,
+    val price: String,
+    val date: String,
+    val time: String,
+    val status: String,          // "pending" | "active" | "completed" | "declined"
+    val createdAtMillis: Long = 0L,
+)

@@ -23,111 +23,158 @@ fun AppScreen(
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
-    // Category navigation
-    var selectedCategoryId by remember { mutableStateOf("") }
+    // ── Home tab navigation stack ────────────────────────────────────────────
+    var selectedCategoryId    by remember { mutableStateOf("") }
     var selectedCategoryLabel by remember { mutableStateOf("") }
+    var selectedProviderUid   by remember { mutableStateOf("") }
+    var selectedProviderName  by remember { mutableStateOf("") }
+    var selectedService       by remember { mutableStateOf<CustomerServiceListing?>(null) }
+    var showProfile           by remember { mutableStateOf(false) }
 
-    // Provider navigation
-    var selectedProviderUid by remember { mutableStateOf("") }
-    var selectedProviderName by remember { mutableStateOf("") }
+    // ── Search tab navigation stack ──────────────────────────────────────────
+    var searchProviderUid    by remember { mutableStateOf("") }
+    var searchProviderName   by remember { mutableStateOf("") }
+    var searchSelectedService by remember { mutableStateOf<CustomerServiceListing?>(null) }
 
-    // Booking navigation — holds the selected service (carries all availability info)
-    var selectedService by remember { mutableStateOf<CustomerServiceListing?>(null) }
-
-    var showProfile by remember { mutableStateOf(false) }
+    // ── Cart ─────────────────────────────────────────────────────────────────
     var cartItems by remember { mutableStateOf(listOf<CartItem>()) }
 
     val tabs = listOf(
-        AppTab(title = "Home", icon = Icons.Filled.Home),
-        AppTab(title = "Search", icon = Icons.Filled.Search),
-        AppTab(title = "Cart", icon = Icons.Filled.ShoppingCart),
+        AppTab(title = "Home",     icon = Icons.Filled.Home),
+        AppTab(title = "Search",   icon = Icons.Filled.Search),
+        AppTab(title = "Cart",     icon = Icons.Filled.ShoppingCart),
         AppTab(title = "Bookings", icon = Icons.Filled.DateRange),
     )
 
     fun clearHomeStack() {
-        selectedService = null
-        selectedProviderUid = ""
-        selectedProviderName = ""
-        selectedCategoryId = ""
+        selectedService       = null
+        selectedProviderUid   = ""
+        selectedProviderName  = ""
+        selectedCategoryId    = ""
         selectedCategoryLabel = ""
-        showProfile = false
+        showProfile           = false
+    }
+
+    fun clearSearchStack() {
+        searchSelectedService = null
+        searchProviderUid     = ""
+        searchProviderName    = ""
+    }
+
+    /** Add item only if the same (providerUid, serviceId, date, time) isn't already in cart. */
+    fun addToCart(item: CartItem) {
+        val isDuplicate = cartItems.any { existing ->
+            existing.providerUid == item.providerUid &&
+            existing.serviceId   == item.serviceId   &&
+            existing.date        == item.date         &&
+            existing.time        == item.time
+        }
+        if (!isDuplicate) cartItems = cartItems + item
     }
 
     AppLayout(
         currentTabIndex = selectedTabIndex,
         tabs = tabs,
-        onTabSelected = {
-            selectedTabIndex = it
-            if (it != 0) clearHomeStack()
+        onTabSelected = { index ->
+            selectedTabIndex = index
+            if (index != 0) clearHomeStack()
+            if (index != 1) clearSearchStack()
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
+
+                // ── Home ─────────────────────────────────────────────────────
                 0 -> when {
                     selectedService != null -> BookingScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        service = selectedService!!,
-                        onBack = { selectedService = null },
+                        service  = selectedService!!,
+                        onBack   = { selectedService = null },
                         onAddToCart = { item ->
-                            cartItems = cartItems + item
-                            selectedService = null
+                            addToCart(item)
+                            selectedService     = null
                             selectedProviderUid = ""
-                            selectedTabIndex = 2
+                            selectedTabIndex    = 2
                         },
                     )
                     selectedProviderUid.isNotEmpty() -> ServiceListScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        providerUid = selectedProviderUid,
+                        modifier     = Modifier.fillMaxSize().padding(innerPadding),
+                        providerUid  = selectedProviderUid,
                         providerName = selectedProviderName,
-                        categoryId = selectedCategoryId,
-                        onBack = { selectedProviderUid = ""; selectedProviderName = "" },
+                        categoryId   = selectedCategoryId,
+                        onBack       = { selectedProviderUid = ""; selectedProviderName = "" },
                         onSelectService = { svc -> selectedService = svc },
                     )
                     selectedCategoryId.isNotEmpty() -> CategoryListScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        categoryId = selectedCategoryId,
-                        categoryLabel = selectedCategoryLabel,
-                        onBack = { selectedCategoryId = ""; selectedCategoryLabel = "" },
+                        modifier       = Modifier.fillMaxSize().padding(innerPadding),
+                        categoryId     = selectedCategoryId,
+                        categoryLabel  = selectedCategoryLabel,
+                        onBack         = { selectedCategoryId = ""; selectedCategoryLabel = "" },
                         onProviderClick = { uid, name ->
-                            selectedProviderUid = uid
+                            selectedProviderUid  = uid
                             selectedProviderName = name
                         },
                     )
                     showProfile -> ProfileScreen(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onBack = { showProfile = false },
-                        onLogout = onLogout,
+                        modifier  = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack    = { showProfile = false },
+                        onLogout  = onLogout,
                     )
                     else -> HomeScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         onNavigateToCategory = { id, label ->
-                            selectedCategoryId = id
+                            selectedCategoryId    = id
                             selectedCategoryLabel = label
                         },
                         onNavigateToProfile = { showProfile = true },
-                        onNavigateToSearch = { selectedTabIndex = 1 },
+                        onNavigateToSearch  = { selectedTabIndex = 1 },
                         onNavigateToProvider = { uid, name ->
-                            selectedProviderUid = uid
+                            selectedProviderUid  = uid
                             selectedProviderName = name
                         },
                     )
                 }
-                1 -> SearchScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    onProviderClick = { uid, name ->
-                        selectedProviderUid = uid
-                        selectedProviderName = name
-                        selectedTabIndex = 0
-                    },
-                )
+
+                // ── Search ───────────────────────────────────────────────────
+                1 -> when {
+                    searchSelectedService != null -> BookingScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        service  = searchSelectedService!!,
+                        onBack   = { searchSelectedService = null },
+                        onAddToCart = { item ->
+                            addToCart(item)
+                            clearSearchStack()
+                            selectedTabIndex = 2
+                        },
+                    )
+                    searchProviderUid.isNotEmpty() -> ServiceListScreen(
+                        modifier     = Modifier.fillMaxSize().padding(innerPadding),
+                        providerUid  = searchProviderUid,
+                        providerName = searchProviderName,
+                        categoryId   = "",           // search is cross-category
+                        onBack       = { searchProviderUid = ""; searchProviderName = "" },
+                        onSelectService = { svc -> searchSelectedService = svc },
+                    )
+                    else -> SearchScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onResultClick = { service ->
+                            searchProviderUid  = service.providerUid
+                            searchProviderName = service.providerName
+                        },
+                    )
+                }
+
+                // ── Cart ─────────────────────────────────────────────────────
                 2 -> CartScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    cartItems = cartItems,
+                    modifier     = Modifier.fillMaxSize().padding(innerPadding),
+                    cartItems    = cartItems,
                     onRemoveItem = { cartItems = cartItems - it },
-                    onConfirm = {
-                        cartItems = emptyList()
-                        selectedTabIndex = 0
+                    onConfirm    = {
+                        cartItems        = emptyList()
+                        selectedTabIndex = 3         // go to Bookings after confirming
                     },
                 )
+
+                // ── Bookings ─────────────────────────────────────────────────
                 3 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
             }
         },

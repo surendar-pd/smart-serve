@@ -18,9 +18,12 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedCard
@@ -35,7 +38,10 @@ fun CartScreen(
     onRemoveItem: (CartItem) -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: CartViewModel = hiltViewModel(),
 ) {
+    val isConfirming by viewModel.isConfirming.collectAsState()
+
     Column(modifier = modifier.fillMaxSize()) {
         CustomerTabHeader(
             title = "My Cart (${cartItems.size} item${if (cartItems.size == 1) "" else "s"})",
@@ -102,8 +108,10 @@ fun CartScreen(
             HorizontalDivider()
 
             SharedButton(
-                text = "Confirm Bookings",
-                onClick = onConfirm,
+                text = if (isConfirming) "Confirming…" else "Confirm Bookings",
+                onClick = { viewModel.confirm(cartItems, onConfirm) },
+                enabled = !isConfirming,
+                loading = isConfirming,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 16.dp),
