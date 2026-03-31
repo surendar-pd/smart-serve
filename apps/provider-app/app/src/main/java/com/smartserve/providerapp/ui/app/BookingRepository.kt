@@ -65,30 +65,60 @@ class BookingRepository @Inject constructor(
         if (ids.isEmpty()) return requests
 
         val names = mutableMapOf<String, String>()
+        val profilesHomeAddresses = mutableMapOf<String, String>()
+
         ids.forEach { customerId ->
-            val name = runCatching {
+            runCatching {
                 val doc = customerProfiles.document(customerId).get().await()
-                doc.getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+
+                val profileName = doc.getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
                     ?: doc.getString("fullName")?.trim()?.takeIf { it.isNotBlank() }
                     ?: doc.getString("name")?.trim()?.takeIf { it.isNotBlank() }
-                    ?: users.document(customerId).get().await()
+                if (!profileName.isNullOrBlank()) {
+                    names[customerId] = profileName
+                } else {
+                    val userName = users.document(customerId).get().await()
                         .getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+                    if (!userName.isNullOrBlank()) names[customerId] = userName
+                }
+
+                val profileAddress = doc.getString("homeAddress")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: doc.getString("address")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: doc.getString("home_address")?.trim()?.takeIf { it.isNotBlank() }
+                if (!profileAddress.isNullOrBlank()) {
+                    profilesHomeAddresses[customerId] = profileAddress
+                }
             }.getOrNull()
-            if (!name.isNullOrBlank()) names[customerId] = name
         }
 
         return requests.map { request ->
             val resolved = names[request.customerId]
-            if (resolved.isNullOrBlank()) request
-            else request.copy(
-                customerFirstName = resolved,
-                customerInitials = resolved
+            val profileHomeAddress = profilesHomeAddresses[request.customerId]
+            val homeAddressResolved = request.homeAddress.takeIf { it.isNotBlank() }
+                ?: profileHomeAddress.orEmpty()
+            val neighborhoodResolved = request.neighborhood.takeIf { it.isNotBlank() }
+                ?: profileHomeAddress.orEmpty()
+
+            var enriched = request.copy(
+                homeAddress = homeAddressResolved,
+                neighborhood = neighborhoodResolved,
+            )
+
+            if (!resolved.isNullOrBlank()) {
+                val initials = resolved
                     .split(" ")
                     .mapNotNull { it.firstOrNull()?.uppercaseChar() }
                     .take(2)
                     .joinToString("")
-                    .ifBlank { request.customerInitials },
-            )
+                    .ifBlank { enriched.customerInitials }
+
+                enriched = enriched.copy(
+                    customerFirstName = resolved,
+                    customerInitials = initials,
+                )
+            }
+
+            enriched
         }
     }
 

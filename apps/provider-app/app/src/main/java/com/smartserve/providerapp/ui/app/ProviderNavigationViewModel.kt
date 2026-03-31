@@ -2,6 +2,7 @@ package com.smartserve.providerapp.ui.app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.smartserve.sharedauth.NominatimGeocoder
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -32,6 +33,7 @@ class ProviderNavigationViewModel @AssistedInject constructor(
     @Assisted("customerAddress") private val customerAddress: String,
     private val locationRepository: ProviderLocationRepository,
     private val routeRepository: RouteRepository,
+    private val geocoder: NominatimGeocoder,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -45,7 +47,7 @@ class ProviderNavigationViewModel @AssistedInject constructor(
 
     private val _uiState = MutableStateFlow(
         NavigationUiState(
-            customerLocation = GeoPoint(customerLat, customerLng),
+            customerLocation = if (customerLat != 0.0 || customerLng != 0.0) GeoPoint(customerLat, customerLng) else null,
             customerAddress  = customerAddress,
         )
     )
@@ -53,7 +55,32 @@ class ProviderNavigationViewModel @AssistedInject constructor(
 
     private var routeRefreshJob: Job? = null
 
-    init { observeProviderLocation() }
+    init {
+        observeProviderLocation()
+        if (_uiState.value.customerLocation == null && customerAddress.isNotBlank()) {
+            resolveCustomerAddress()
+        }
+    }
+
+    private fun resolveCustomerAddress() {
+        viewModelScope.launch {
+            val result = geocoder.forwardGeocode(customerAddress)
+            if (result != null) {
+                _uiState.update {
+                    it.copy(
+                        customerLocation = GeoPoint(result.lat, result.lon),
+                        customerAddress  = result.shortLabel,
+                        errorMessage     = null,
+                    )
+                }
+                _uiState.value.providerLocation?.let { fetchRoute(it) }
+            } else {
+                _uiState.update {
+                    it.copy(errorMessage = "Unable to resolve address for map")
+                }
+            }
+        }
+    }
 
     private fun observeProviderLocation() {
         viewModelScope.launch {
@@ -88,25 +115,45 @@ class ProviderNavigationViewModel @AssistedInject constructor(
 
     private fun fetchRoute(providerPoint: GeoPoint) {
         viewModelScope.launch {
+            val customerPoint = _uiState.value.customerLocation
+            if (customerPoint == null) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = "Destination coordinates unavailable") }
+                return@launch
+            }
+
+            android.util.Log.d("ProviderNavVM", "fetchRoute called provider=$providerPoint customer=$customerPoint")
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+
             runCatching {
                 routeRepository.getRoute(
                     providerLat = providerPoint.latitude,
                     providerLng = providerPoint.longitude,
-                    customerLat = customerLat,
-                    customerLng = customerLng,
+                    customerLat = customerPoint.latitude,
+                    customerLng = customerPoint.longitude,
                 )
             }.onSuccess { result ->
                 _uiState.update {
+                    val routePoints = result.points.ifEmpty() {
+                        listOf(providerPoint, customerPoint)
+                    }
                     it.copy(
                         isLoading    = false,
-                        routePoints  = result.points,
+                        routePoints  = routePoints,
                         distanceText = "%.1f km".format(result.distanceKm),
                         etaText      = "${result.durationMin} mins",
+                        errorMessage = if (routePoints.isEmpty()) "Route data unavailable" else null,
                     )
                 }
             }.onFailure { e ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = "Route error: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        routePoints = listOf(providerPoint, customerPoint),
+                        distanceText = "--",
+                        etaText = "--",
+                        errorMessage = "Route error: ${e.message}",
+                    )
+                }
             }
         }
     }
