@@ -53,6 +53,7 @@ fun ActiveJobScreen(
     modifier: Modifier = Modifier,
     onNavigateToBookings: () -> Unit,
     onNavigateToChat: (String) -> Unit,
+    onNavigateToMap: (lat: Double, lng: Double, address: String) -> Unit,  
 ) {
     // ── Build VM via assisted inject, scoped to this bookingId ───────────────
     val holder: ActiveJobAssistedFactoryHolder = hiltViewModel()
@@ -214,6 +215,21 @@ fun ActiveJobScreen(
                         onClick  = { onNavigateToChat(bookingId) },
                         modifier = Modifier.fillMaxWidth(),
                         variant  = SharedButtonVariant.Secondary,
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                SharedButton(
+                    text     = "Get Directions",
+                    onClick  = {
+                        onNavigateToMap(
+                            req.customerLat,    // ← must NOT be 0.0
+                            req.customerLng,    // ← must NOT be 0.0
+                            req.neighborhood,  // address shown on the map
+                        )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                variant  = SharedButtonVariant.Outline,
                 )
                 }
             }
