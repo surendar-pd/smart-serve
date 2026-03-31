@@ -1,7 +1,9 @@
 package com.smartserve.providerapp.ui.app
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.GeoPoint
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -26,6 +28,9 @@ data class ServiceRequest(
     val id: String,
     val providerId: String,
     val customerId: String,
+    val serviceId: String,
+    val categoryId: String,
+    val categoryLabel: String,
     val customerFirstName: String,
     val customerInitials: String,
     val serviceType: String,
@@ -34,6 +39,7 @@ data class ServiceRequest(
     val neighborhood: String,
     val homeAddress: String,
     val specialInstructions: String,
+    val location: GeoPoint?,
     val status: RequestStatus,
     val customerRating: Float?,
     val earnings: Int,
@@ -47,28 +53,24 @@ data class ServiceRequest(
 // ── Firestore deserializer ────────────────────────────────────────────────────
 
 fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
-    val dateString = getString("date")?.takeIf { it.isNotBlank() }
-        ?: getTimestamp("bookingDate")?.let {
-            SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it.toDate())
-        }
-        ?: ""
+    // Canonical schema: reference fields + minimal primitives.
+    val bookingDate = getTimestamp("bookingDate")
+    val dateString = bookingDate?.let {
+        SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it.toDate())
+    } ?: ""
 
-    val serviceDisplay = getString("serviceName")?.takeIf { it.isNotBlank() }
-        ?: getString("serviceType")?.takeIf { it.isNotBlank() }
-        ?: getString("serviceId")
-            ?.replace("_", " ")
-            ?.split(" ")
-            ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-        ?: ""
+    val customerRef = get("customer") as? DocumentReference ?: return null
+    val providerRef = get("provider") as? DocumentReference ?: return null
+    val serviceRef = get("service") as? DocumentReference ?: return null
+    val categoryId = getDocumentReference("category")?.id
+        ?: getString("category")?.trim().orEmpty()
 
-    val customerId = getString("customerId")
-        ?: getString("customer_id")
-        ?: return null
+    val customerId = customerRef.id
+    val providerId = providerRef.id
+    val serviceId = serviceRef.id
 
-    val displayName = getString("customerName")
-        ?.takeIf { it.isNotBlank() }
-        ?: getString("customerFirstName")?.takeIf { it.isNotBlank() }
-        ?: "Customer"
+    // Name + service title are resolved in repository enrichment.
+    val displayName = "Customer"
     val initials = displayName
         .split(" ")
         .mapNotNull { it.firstOrNull()?.uppercaseChar() }
@@ -76,40 +78,37 @@ fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
         .joinToString("")
         .ifBlank { customerId.take(2).uppercase() }
 
-    val parsedEarnings = getLong("earnings")?.toInt()
-        ?: getDouble("earnings")?.toInt()
-        ?: getString("price")
-            ?.filter { it.isDigit() }
-            ?.toIntOrNull()
-        ?: getLong("price")?.toInt()
-        ?: getDouble("price")?.toInt()
+    val parsedEarnings = getDouble("hourlyRate")?.toInt()
+        ?: getLong("hourlyRate")?.toInt()
         ?: 0
 
-    val statusRaw = getString("status")
-    val normalizedStatus = when (statusRaw?.trim()?.lowercase()) {
-        "confirmed" -> "active"
-        else -> statusRaw
-    }
+    val normalizedStatus = getString("status")
+
+    val locationResolved = getGeoPoint("location")
 
     ServiceRequest(
         id                  = id,
-        providerId          = getString("providerUid") ?: getString("provider_id") ?: "",
+        providerId          = providerId,
         customerId          = customerId,
+        serviceId           = serviceId,
+        categoryId          = categoryId,
+        categoryLabel       = "",
         customerFirstName   = displayName,
         customerInitials    = initials,
-        serviceType         = serviceDisplay,
+        serviceType         = "",
         date                = dateString,
-        time                = getString("time") ?: getString("timeSlot") ?: "",
-        neighborhood        = getString("address") ?: getString("neighborhood") ?: "",
-        homeAddress         = getString("homeAddress") ?: getString("address") ?: "",
+        time                = getString("timeSlot") ?: "",
+        neighborhood        = getString("address") ?: "",
+        homeAddress         = getString("address") ?: "",
         specialInstructions = getString("specialInstructions") ?: "",
+        location            = locationResolved,
         status              = RequestStatus.from(normalizedStatus),
         customerRating      = getDouble("customerRating")?.toFloat(),
         earnings            = parsedEarnings,
         createdAt           = getTimestamp("createdAt"),
         completedAt         = getTimestamp("completedAt"),
         callLoggedAt        = getTimestamp("callLoggedAt"),
-        customerLat = getDouble("customerLat") ?: 0.0,
-        customerLng = getDouble("customerLng") ?: 0.0,
+        customerLat = locationResolved?.latitude ?: 0.0,
+        customerLng = locationResolved?.longitude ?: 0.0,
     )
 }.getOrNull()

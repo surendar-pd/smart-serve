@@ -2,19 +2,14 @@ package com.smartserve.providerapp.ui.app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
-import com.google.firebase.firestore.SetOptions
-import com.smartserve.sharedauth.AuthCollections
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -38,7 +33,6 @@ data class ProfileUiState(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
     private val servicesRepository: ProviderServicesRepository,
 ) : ViewModel() {
@@ -71,22 +65,6 @@ class ProfileViewModel @Inject constructor(
                 displayName = user.displayName?.takeIf { n -> n.isNotBlank() } ?: "Provider",
                 memberSince = memberSince,
             )
-        }
-
-        viewModelScope.launch {
-            runCatching {
-                firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).get().await()
-            }.onSuccess { doc ->
-                val center = doc.getGeoPoint("serviceCenter")
-                val radius = doc.getDouble("serviceRadiusKm") ?: 10.0
-                _uiState.update {
-                    it.copy(
-                        areaLat = center?.latitude ?: it.areaLat,
-                        areaLng = center?.longitude ?: it.areaLng,
-                        areaRadiusKm = radius.toString(),
-                    )
-                }
-            }
         }
 
         viewModelScope.launch {
@@ -132,16 +110,11 @@ class ProfileViewModel @Inject constructor(
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }
 
-    fun openAreaSheet() = _uiState.update { it.copy(areaSheetOpen = true) }
+    fun openAreaSheet() = _uiState.update { it.copy(areaSheetOpen = true, errorMessage = null) }
     fun closeAreaSheet() = _uiState.update { it.copy(areaSheetOpen = false) }
 
-    fun openAvailabilitySheet() {
-        if (selectedService == null) {
-            _uiState.update { it.copy(errorMessage = "Add a service first in Services and Details") }
-            return
-        }
-        _uiState.update { it.copy(availabilitySheetOpen = true) }
-    }
+    fun openAvailabilitySheet() =
+        _uiState.update { it.copy(availabilitySheetOpen = true, errorMessage = null) }
 
     fun closeAvailabilitySheet() = _uiState.update { it.copy(availabilitySheetOpen = false) }
 
@@ -161,10 +134,7 @@ class ProfileViewModel @Inject constructor(
 
     fun saveArea() = viewModelScope.launch {
         val uid = providerUid ?: return@launch
-        val service = selectedService ?: run {
-            _uiState.update { it.copy(errorMessage = "Select a service first") }
-            return@launch
-        }
+        val service = selectedService ?: return@launch
         val radius = _uiState.value.areaRadiusKm.toDoubleOrNull()
         if (radius == null || radius <= 0.0) {
             _uiState.update { it.copy(errorMessage = "Enter a valid radius") }

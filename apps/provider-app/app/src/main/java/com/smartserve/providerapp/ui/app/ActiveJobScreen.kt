@@ -31,7 +31,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
@@ -43,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
+import com.smartserve.sharedui.SharedBottomSheet
 import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedScaffold
 import com.smartserve.sharedui.SharedText
@@ -127,14 +130,70 @@ fun ActiveJobScreen(
                     .ifBlank { req.neighborhood }
                     .ifBlank { req.customerFirstName }
                 val isComplete = req.status == RequestStatus.COMPLETED
+                var showCompleteSheet by remember { mutableStateOf(false) }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                ) {
+                SharedBottomSheet(
+                    isOpen = showCompleteSheet,
+                    onOpenChange = { showCompleteSheet = it },
+                    skipPartiallyExpanded = true,
+                    sheetContent = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            SharedText(text = "Complete service", variant = SharedTextVariant.Subtitle)
+                            SharedText(
+                                text = "Rate the customer, then complete the job.",
+                                variant = SharedTextVariant.Caption,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+
+                            SharedText(text = "Rating", variant = SharedTextVariant.Label)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                (1..5).forEach { star ->
+                                    Icon(
+                                        imageVector = Icons.Filled.Star,
+                                        contentDescription = "Star $star",
+                                        tint = if (star <= state.currentRating)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.outlineVariant,
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clickable(enabled = !state.isMarkingDone) {
+                                                viewModel.setRating(star.toFloat())
+                                            },
+                                    )
+                                }
+                            }
+
+                            SharedButton(
+                                text = if (state.isMarkingDone) "Completing…" else "Complete service",
+                                onClick = { viewModel.completeService() },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = state.currentRating > 0f && !state.isMarkingDone,
+                                loading = state.isMarkingDone,
+                            )
+
+                            SharedButton(
+                                text = "Cancel",
+                                onClick = { showCompleteSheet = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                variant = SharedButtonVariant.Ghost,
+                                enabled = !state.isMarkingDone,
+                            )
+                        }
+                    },
+                    content = { _ ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp),
+                        ) {
                     // ── Status banner ─────────────────────────────────────────
                     Box(
                         modifier = Modifier
@@ -284,26 +343,6 @@ fun ActiveJobScreen(
 
                     Spacer(Modifier.height(20.dp))
 
-                    // ── Star rating ───────────────────────────────────────────
-                    SharedText(text = "Rate Customer", variant = SharedTextVariant.BodyStrong)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        (1..5).forEach { star ->
-                            Icon(
-                                imageVector        = Icons.Filled.Star,
-                                contentDescription = "Star $star",
-                                tint = if (star <= state.currentRating)
-                                           MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clickable { viewModel.rateCustomer(star.toFloat()) },
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(24.dp))
-
                     // ── Call Customer ─────────────────────────────────────────
                     SharedButton(
                         text        = "Call Customer",
@@ -323,23 +362,26 @@ fun ActiveJobScreen(
                     // ── Mark Done ─────────────────────────────────────────────
                     SharedButton(
                         text     = "Mark Done",
-                        onClick  = { viewModel.markDone() },
+                        onClick  = { showCompleteSheet = true },
                         modifier = Modifier.fillMaxWidth(),
-                        loading  = state.isMarkingDone,
-                        enabled  = !state.isMarkingDone,
+                        enabled  = !state.isMarkingDone && !isComplete,
                     )
 
 
 
                     // Add a "Chat with Customer" button in ActiveJobScreen:
 
-                    SharedButton(
-                        text     = "Chat with Customer",
-                        onClick  = { onNavigateToChat(bookingId) },
-                        modifier = Modifier.fillMaxWidth(),
-                        variant  = SharedButtonVariant.Secondary,
-                    )
-                }
+                    if (!isComplete) {
+                        SharedButton(
+                            text     = "Chat with Customer",
+                            onClick  = { onNavigateToChat(bookingId) },
+                            modifier = Modifier.fillMaxWidth(),
+                            variant  = SharedButtonVariant.Secondary,
+                        )
+                    }
+                        }
+                    },
+                )
             }
         }
     }

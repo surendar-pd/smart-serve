@@ -35,11 +35,10 @@ import com.smartserve.sharedui.SharedSwitchRow
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
 
-private val filterOptions: List<Pair<String, RequestStatus?>> = listOf(
-    "All"     to null,
-    "New"     to RequestStatus.NEW,
-    "Pending" to RequestStatus.PENDING,
-    "Active"  to RequestStatus.ACTIVE,
+private val filterOptions: List<Pair<String, RequestStatus>> = listOf(
+    "New" to RequestStatus.PENDING,
+    "Active" to RequestStatus.ACTIVE,
+    "Completed" to RequestStatus.COMPLETED,
 )
 
 @Composable
@@ -105,11 +104,12 @@ fun HomeScreen(
 
             else -> {
                 val requests = viewModel.filteredRequests()
+
                 if (requests.isEmpty()) {
                     SharedEmptyState(title = "No requests here")
                 } else {
                     LazyColumn(
-                        modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(requests, key = { it.id }) { request ->
@@ -138,34 +138,34 @@ private fun RequestCard(request: ServiceRequest, onClick: () -> Unit) {
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SharedText(text = request.customerFirstName, variant = SharedTextVariant.BodyStrong)
-                    Spacer(Modifier.width(8.dp))
-                    StatusBadge(status = request.status)
-                }
+                SharedText(text = request.customerFirstName, variant = SharedTextVariant.BodyStrong)
                 SharedText(text = request.serviceType, variant = SharedTextVariant.Body)
                 SharedText(
-                    text    = "${request.date} · ${request.time} · ${request.neighborhood}",
+                    text    = "${request.date} · ${request.time}",
                     variant = SharedTextVariant.Caption,
                 )
             }
-            Icon(
-                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "View",
-                tint               = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                SharedText(
+                    text = when (request.status) {
+                        RequestStatus.PENDING -> "● Pending"
+                        RequestStatus.ACTIVE -> "● Active"
+                        RequestStatus.COMPLETED -> "● Completed"
+                        RequestStatus.DECLINED -> "● Declined"
+                        RequestStatus.NEW -> "● New"
+                    },
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Icon(
+                    imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "View",
+                    tint               = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
 
-@Composable
-private fun StatusBadge(status: RequestStatus) {
-    val label = when (status) {
-        RequestStatus.NEW       -> "● New"
-        RequestStatus.PENDING   -> "● Pending"
-        RequestStatus.ACTIVE    -> "● Active"
-        RequestStatus.COMPLETED -> "● Done"
-        RequestStatus.DECLINED  -> "● Declined"
-    }
-    SharedText(text = label, variant = SharedTextVariant.Caption)
-}
+ 

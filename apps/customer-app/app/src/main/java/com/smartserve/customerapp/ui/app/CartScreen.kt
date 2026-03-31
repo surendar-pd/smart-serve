@@ -15,19 +15,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.sharedui.SharedAvatar
@@ -44,11 +40,9 @@ fun CartScreen(
     onRemoveItem: (CartItem) -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: CartViewModel = hiltViewModel(),
+    viewModel: CartViewModel = hiltViewModel(LocalContext.current as ComponentActivity),
 ) {
     val isConfirming by viewModel.isConfirming.collectAsState()
-    var showConfirmDialog by remember { mutableStateOf(false) }
-
 
     Column(modifier = modifier.fillMaxSize()) {
         CustomerTabHeader(
@@ -117,39 +111,13 @@ fun CartScreen(
 
             SharedButton(
                 text = if (isConfirming) "Confirming…" else "Confirm Bookings",
-                onClick = { showConfirmDialog = true },
+                onClick = { viewModel.confirm(cartItems, onConfirm) },
                 enabled = !isConfirming && cartItems.isNotEmpty(),
                 loading = isConfirming,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 16.dp),
             )
-
-            if (showConfirmDialog) {
-                AlertDialog(
-                    onDismissRequest = { showConfirmDialog = false },
-                    title = { SharedText(text = "Confirm booking") },
-                    text = {
-                        SharedText(
-                            text = "Place ${cartItems.size} booking${if (cartItems.size == 1) "" else "s"} for delivery to ${cartItems.firstOrNull()?.address.orEmpty()}?",
-                            variant = SharedTextVariant.Body,
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showConfirmDialog = false
-                            viewModel.confirm(cartItems, onConfirm)
-                        }) {
-                            Text("Yes")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showConfirmDialog = false }) {
-                            Text("No")
-                        }
-                    },
-                )
-            }
         }
     }
 }

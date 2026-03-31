@@ -78,8 +78,27 @@ class ActiveJobViewModel @AssistedInject constructor(
         runCatching { repository.logCall(bookingId) }
     }
 
-    fun rateCustomer(rating: Float) = viewModelScope.launch {
+    fun setRating(rating: Float) {
         _uiState.update { it.copy(currentRating = rating) }
-        runCatching { repository.rateCustomer(bookingId, rating) }
+    }
+
+    fun completeService() = viewModelScope.launch {
+        val rating = _uiState.value.currentRating
+        if (rating <= 0f) {
+            _events.send(ActiveJobEvent.ShowSnackbar("Please rate the customer first"))
+            return@launch
+        }
+
+        _uiState.update { it.copy(isMarkingDone = true) }
+
+        runCatching {
+            repository.rateCustomer(bookingId, rating)
+            repository.markDone(bookingId)
+        }.onSuccess {
+            _events.send(ActiveJobEvent.ShowSnackbar("Job marked complete!"))
+            _events.send(ActiveJobEvent.NavigateToBookings)
+        }.onFailure { e ->
+            _uiState.update { it.copy(isMarkingDone = false, errorMessage = e.localizedMessage) }
+        }
     }
 }

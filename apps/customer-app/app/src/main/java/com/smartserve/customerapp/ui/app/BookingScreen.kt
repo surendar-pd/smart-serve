@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -43,10 +45,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedButton
 import com.smartserve.sharedui.SharedButtonVariant
@@ -170,6 +174,8 @@ private fun OsmAddressPicker(
 @Composable
 fun BookingScreen(
     service: CustomerServiceListing,
+    cartItems: List<CartItem> = emptyList(),
+    categoryId: String = "",
     onBack: () -> Unit,
     onAddToCart: (CartItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -196,6 +202,10 @@ fun BookingScreen(
     var notes           by remember { mutableStateOf("") }
     var showDatePicker  by remember { mutableStateOf(false) }
     var showTimePicker  by remember { mutableStateOf(false) }
+
+    val alreadyInCart = remember(cartItems, service.serviceId, service.providerUid) {
+        cartItems.any { it.serviceId == service.serviceId && it.providerUid == service.providerUid }
+    }
 
     // Pre-fill search field from saved profile address once it loads
     LaunchedEffect(homeAddress) {
@@ -303,6 +313,26 @@ fun BookingScreen(
         ) {
             Spacer(Modifier.height(4.dp))
             SharedProgress(progress = 0.5f)
+
+            if (service.photoUrls.isNotEmpty()) {
+                SharedText(text = "Photos", variant = SharedTextVariant.Label)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    items(service.photoUrls, key = { it }) { url ->
+                        AsyncImage(
+                            model = url,
+                            contentDescription = "Service photo",
+                            modifier = Modifier
+                                .width(200.dp)
+                                .height(140.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                }
+            }
 
             // ── Date ──────────────────────────────────────────────────────────
             SharedText(text = "Select Date", variant = SharedTextVariant.Label)
@@ -458,37 +488,38 @@ fun BookingScreen(
                 )
             }
 
-            val isReadyToAdd = selectedDate.isNotBlank() && selectedTime.isNotBlank() && confirmedAddress.isNotBlank() && addressValid
-
-            if (!isReadyToAdd) {
-                SharedText(
-                    text    = "Select a date, time and a valid Ottawa address before adding to cart.",
-                    variant = SharedTextVariant.Caption,
-                    color   = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            val canAddToCart = selectedDate.isNotBlank() && selectedTime.isNotBlank() && !alreadyInCart
 
             SharedButton(
-                text    = "Add to Cart",
+                text    = if (alreadyInCart) "Added to cart" else "Add to Cart",
                 onClick = {
                     onAddToCart(
                         CartItem(
                             providerUid  = service.providerUid,
                             serviceId    = service.serviceId,
+                            categoryId   = categoryId,
                             providerName = providerName,
                             serviceName  = serviceName,
                             price        = priceLabel,
+                            hourlyRate   = service.hourlyRate,
+                            lat          = pinLat,
+                            lon          = pinLon,
                             address      = confirmedAddress,
-                            addressLat   = geoResult?.lat ?: pinLat,
-                            addressLng   = geoResult?.lon ?: pinLon,
                             date         = selectedDate,
                             time         = selectedTime,
                         )
                     )
                 },
+                enabled = canAddToCart,
                 modifier = Modifier.fillMaxWidth(),
-                enabled  = isReadyToAdd,
             )
+            if (alreadyInCart) {
+                SharedText(
+                    text = "This service is already in your cart",
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(Modifier.height(16.dp))
         }
     }

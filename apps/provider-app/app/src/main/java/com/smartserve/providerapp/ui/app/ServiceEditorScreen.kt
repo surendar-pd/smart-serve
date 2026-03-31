@@ -127,15 +127,15 @@ fun ServiceEditorScreen(
 
     LaunchedEffect(state.savedOk) {
         if (state.savedOk) {
-            viewModel.consumeSaved()
             onFinished()
+            viewModel.consumeSaved()
         }
     }
 
     LaunchedEffect(state.deletedOk) {
         if (state.deletedOk) {
-            viewModel.consumeDeleted()
             onFinished()
+            viewModel.consumeDeleted()
         }
     }
 

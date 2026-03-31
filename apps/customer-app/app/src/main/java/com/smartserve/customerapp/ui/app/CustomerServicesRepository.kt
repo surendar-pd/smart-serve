@@ -1,13 +1,22 @@
 package com.smartserve.customerapp.ui.app
 
 import android.util.Log
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.smartserve.sharedauth.AuthCollections
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,13 +25,88 @@ private const val TAG = "CustomerServicesRepo"
 @Singleton
 class CustomerServicesRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth,
 ) {
 
     private val services   get() = firestore.collection(AuthCollections.SERVICES)
     private val profiles   get() = firestore.collection(AuthCollections.PROVIDER_PROFILES)
     private val categories get() = firestore.collection(AuthCollections.CATEGORIES)
-    private val bookings   get() = firestore.collection("bookings")
+    private val bookings   get() = firestore.collection(AuthCollections.BOOKINGS)
     private val customerProfiles get() = firestore.collection(AuthCollections.CUSTOMER_PROFILES)
+
+    private fun cartItemsCollection(customerUid: String) =
+        customerProfiles.document(customerUid).collection(AuthCollections.CUSTOMER_CART_ITEMS)
+
+    /**
+     * Live cart for the signed-in customer. Emits empty when logged out.
+     * Documents use DocumentReference fields: `service`, `provider`, optional `category`.
+     */
+    fun observeCartItems(): Flow<List<CartItem>> = callbackFlow {
+        var reg: ListenerRegistration? = null
+
+        fun attach(uid: String?) {
+            reg?.remove()
+            reg = null
+            if (uid.isNullOrBlank()) {
+                trySend(emptyList())
+                return
+            }
+            val col = cartItemsCollection(uid)
+            Log.d(TAG, "observeCartItems attach uid=${uid.take(6)}… path=${col.path}")
+            reg = col.addSnapshotListener { snap, err ->
+                if (err != null) {
+                    Log.e(TAG, "observeCartItems listener error path=${col.path}", err)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val list = snap?.documents?.mapNotNull { it.toCartLine() }.orEmpty()
+                    .sortedBy { it.addedAtMillis }
+                trySend(list)
+            }
+        }
+
+        attach(auth.currentUser?.uid)
+        val listener = FirebaseAuth.AuthStateListener { attach(it.currentUser?.uid) }
+        auth.addAuthStateListener(listener)
+        awaitClose {
+            auth.removeAuthStateListener(listener)
+            reg?.remove()
+        }
+    }.distinctUntilChanged()
+
+    suspend fun addCartLine(item: CartItem): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        val col = cartItemsCollection(uid)
+        val ref = col.document()
+        Log.d(TAG, "addCartLine writing ${ref.path}")
+        ref.set(cartLinePayload(item)).await()
+        Unit
+    }.onFailure { e ->
+        Log.e(TAG, "addCartLine FAILED path=customer_profiles/[uid]/cart_items — check rules & console subcollection", e)
+    }
+
+    suspend fun removeCartLine(lineDocumentId: String): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        cartItemsCollection(uid).document(lineDocumentId).delete().await()
+    }
+
+    suspend fun clearCustomerCart(): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: return@runCatching
+        val snap = cartItemsCollection(uid).get().await()
+        if (snap.isEmpty) return@runCatching
+        var batch = firestore.batch()
+        var n = 0
+        for (doc in snap.documents) {
+            batch.delete(doc.reference)
+            n++
+            if (n >= 450) {
+                batch.commit().await()
+                batch = firestore.batch()
+                n = 0
+            }
+        }
+        if (n > 0) batch.commit().await()
+    }
 
     /** In-memory cache so BookingViewModel reacts instantly when profile saves a new address. */
     private val _homeAddressCache = MutableStateFlow("")
@@ -40,7 +124,7 @@ class CustomerServicesRepository @Inject constructor(
                 .whereEqualTo("category", categoryRef)
                 .get().await()
 
-            val activeDocs = snap.documents.filter { it.getBoolean("isActive") != false }
+            val activeDocs = snap.documents.filter { it.getBoolean("isActive") == true }
 
             val activeProviderIds = activeDocs
                 .mapNotNull { it.getDocumentReference("provider")?.id }
@@ -94,10 +178,12 @@ class CustomerServicesRepository @Inject constructor(
                 val categoryEnd   = svcDoc?.getString("availabilityEnd")   ?: ""
 
                 profileDoc.toCustomerProviderSummary(fallbackName = fallbackName)?.copy(
-                    categoryServiceRate      = categoryRate,
+                    serviceDescription = svcDoc?.getString("description").orEmpty(),
+                    hourlyRate = categoryRate,
+                    categoryServiceRate = categoryRate,
                     categoryAvailabilityDays = categoryDays,
                     categoryAvailabilityStart = categoryStart,
-                    categoryAvailabilityEnd   = categoryEnd,
+                    categoryAvailabilityEnd = categoryEnd,
                 )
             }
         } catch (e: Exception) {
@@ -126,7 +212,7 @@ class CustomerServicesRepository @Inject constructor(
 
             snap.documents
                 .filter { doc ->
-                    val active = doc.getBoolean("isActive") != false
+                    val active = doc.getBoolean("isActive") == true
                     val matchesCat = categoryId.isEmpty() ||
                         doc.getDocumentReference("category")?.id == categoryId
                     active && matchesCat
@@ -146,6 +232,7 @@ class CustomerServicesRepository @Inject constructor(
                             ?.mapNotNull { it?.toString() } ?: emptyList(),
                         availabilityStart = doc.getString("availabilityStart") ?: "09:00",
                         availabilityEnd = doc.getString("availabilityEnd") ?: "18:00",
+                        photoUrls = doc.readPhotoUrls(),
                     )
                 }
         } catch (e: Exception) {
@@ -156,12 +243,11 @@ class CustomerServicesRepository @Inject constructor(
 
     /**
      * Returns all services for the search screen.
-     * Fetches all services and filters isActive in-memory so docs without the field
-     * (e.g. written before isActive was added) are also included.
+     * Fetches all services and keeps only documents with `isActive == true`.
      */
     suspend fun getAllActiveServices(): List<CustomerServiceListing> {
         return try {
-            // No filter → no index required; missing isActive treated as active
+            // No server-side filter → no composite index; filter `isActive` in memory.
             val snap = services.get().await()
 
             Log.d(TAG, "getAllActiveServices: ${snap.size()} docs")
@@ -195,7 +281,7 @@ class CustomerServicesRepository @Inject constructor(
             }
 
             snap.documents
-                .filter { it.getBoolean("isActive") != false }   // treat missing as active
+                .filter { it.getBoolean("isActive") == true }
                 .mapNotNull { doc ->
                 val providerUid = doc.getDocumentReference("provider")?.id
                     ?: return@mapNotNull null
@@ -213,6 +299,7 @@ class CustomerServicesRepository @Inject constructor(
                         ?.mapNotNull { it?.toString() } ?: emptyList(),
                     availabilityStart = doc.getString("availabilityStart") ?: "09:00",
                     availabilityEnd = doc.getString("availabilityEnd") ?: "18:00",
+                    photoUrls = doc.readPhotoUrls(),
                 )
             }
         } catch (e: Exception) {
@@ -249,8 +336,15 @@ class CustomerServicesRepository @Inject constructor(
                 uid to title
             }
 
-            snap.documents
-                .mapNotNull { it.toCustomerProviderSummary(fallbackName = onboardingTitleByUid[it.id] ?: "") }
+            snap.documents.mapNotNull { profileDoc ->
+                val uid = profileDoc.id
+                val svcSnap = runCatching { services.document(uid).get().await() }.getOrNull()
+                val listingDesc = svcSnap?.getString("description").orEmpty()
+                val listingRate = svcSnap?.getDouble("hourlyRate")
+                    ?: svcSnap?.getLong("hourlyRate")?.toDouble() ?: 0.0
+                profileDoc.toCustomerProviderSummary(fallbackName = onboardingTitleByUid[uid] ?: "")
+                    ?.copy(serviceDescription = listingDesc, hourlyRate = listingRate)
+            }
                 .sortedByDescending { it.avgRating }
                 .take(limit)
         } catch (e: Exception) {
@@ -263,7 +357,7 @@ class CustomerServicesRepository @Inject constructor(
 
     /** Fetches the home address saved in the customer's profile, or empty string. Also seeds [homeAddressFlow]. */
     suspend fun getCustomerHomeAddress(): String {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return ""
+        val uid = auth.currentUser?.uid ?: return ""
         return runCatching {
             val addr = customerProfiles.document(uid).get().await().getString("homeAddress").orEmpty()
             _homeAddressCache.value = addr
@@ -277,58 +371,212 @@ class CustomerServicesRepository @Inject constructor(
     }
 
     /**
-     * Writes each [CartItem] as a pending booking document in the `bookings` collection.
-     * Uses a batch so all-or-nothing semantics apply.
+     * Writes each [CartItem] as a pending booking: refs for customer, provider, service,
+     * optional category, plus `bookingDate`, `timeSlot`, `address`, `location`, `hourlyRate`, `status`.
      */
     suspend fun confirmBookings(items: List<CartItem>): Result<Unit> = runCatching {
-        val customerId = FirebaseAuth.getInstance().currentUser?.uid
+        val customerId = auth.currentUser?.uid
             ?: error("Customer not signed in")
         val batch = firestore.batch()
+        val customerRef = customerProfiles.document(customerId)
         items.forEach { item ->
-            val doc = bookings.document()
-            batch.set(
-                doc,
-                mapOf(
-                    "customerId"   to customerId,
-                    "providerUid"  to item.providerUid,
-                    "providerName" to item.providerName,
-                    "serviceName"  to item.serviceName,
-                    "price"        to item.price,
-                    "date"         to item.date,
-                    "time"         to item.time,
-                    "address"      to item.address,
-                    "homeAddress"  to item.address,
-                    "customerLat"  to item.addressLat,
-                    "customerLng"  to item.addressLng,
-                    "status"       to "pending",
-                    "createdAt"    to Timestamp.now(),
-                ),
-            )
+            val docId = bookingDocumentId(customerId, item)
+            val doc = bookings.document(docId)
+            val payload = buildBookingPayload(customerId, customerRef, item)
+            batch.set(doc, payload)
         }
         batch.commit().await()
     }
 
+    private fun buildBookingPayload(
+        customerId: String,
+        customerRef: com.google.firebase.firestore.DocumentReference,
+        item: CartItem,
+    ): HashMap<String, Any> {
+        val bookingDate = parseCartDateToTimestamp(item.date) ?: Timestamp.now()
+        val scheduledAt = computeScheduledAt(bookingDate, item.time) ?: bookingDate
+        val m = hashMapOf<String, Any>(
+            // References
+            "customer" to customerRef,
+            "provider" to profiles.document(item.providerUid),
+            "service" to services.document(item.serviceId),
+            // Canonical booking fields (keep simple; reference-based)
+            "bookingDate" to bookingDate,
+            "timeSlot" to item.time,
+            "scheduledAt" to scheduledAt,
+            "address" to item.address,
+            "location" to GeoPoint(item.lat, item.lon),
+            "hourlyRate" to item.hourlyRate,
+            "status" to "pending",
+            "createdAt" to Timestamp.now(),
+        )
+        if (item.categoryId.isNotBlank()) {
+            m["category"] = categories.document(item.categoryId)
+        }
+        return m
+    }
+
+    private fun bookingDocumentId(customerId: String, item: CartItem): String {
+        // Simple deterministic id so we don't create duplicate bookings.
+        // (Firestore doc ids can't contain '/')
+        val raw = "${customerId}_${item.providerUid}_${item.serviceId}_${item.date}_${item.time}"
+        return raw.replace("/", "_")
+    }
+
+    private fun cartLinePayload(item: CartItem): HashMap<String, Any> {
+        val m = hashMapOf<String, Any>(
+            "service" to services.document(item.serviceId),
+            "provider" to profiles.document(item.providerUid),
+            "providerNameCache" to item.providerName,
+            "serviceNameCache" to item.serviceName,
+            "priceLabel" to item.price,
+            "hourlyRateSnapshot" to item.hourlyRate,
+            "address" to item.address,
+            "location" to GeoPoint(item.lat, item.lon),
+            "scheduledDate" to item.date,
+            "scheduledTime" to item.time,
+            "addedAt" to Timestamp.now(),
+        )
+        if (item.categoryId.isNotBlank()) {
+            m["category"] = categories.document(item.categoryId)
+        }
+        return m
+    }
+
     /** Returns all bookings for the currently signed-in customer, newest first. */
     suspend fun getMyBookings(): List<CustomerBooking> {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return emptyList()
+        val uid = auth.currentUser?.uid ?: return emptyList()
         return runCatching {
-            bookings.whereEqualTo("customerId", uid).get().await().documents
-                .mapNotNull { doc ->
-                    CustomerBooking(
-                        id           = doc.id,
-                        providerName = doc.getString("providerName") ?: "",
-                        serviceName  = doc.getString("serviceName") ?: "",
-                        price        = doc.getString("price") ?: "",
-                        date         = doc.getString("date") ?: "",
-                        time         = doc.getString("time") ?: "",
-                        status       = doc.getString("status") ?: "pending",
-                        createdAtMillis = doc.getTimestamp("createdAt")
-                            ?.toDate()?.time ?: 0L,
-                    )
+            val customerRef = customerProfiles.document(uid)
+            val docs = bookings.whereEqualTo("customer", customerRef).get().await().documents
+            val providerNameCache = mutableMapOf<String, String>()
+            val serviceNameCache = mutableMapOf<String, String>()
+            val categoryLabelCache = mutableMapOf<String, String>()
+
+            suspend fun providerNameFor(doc: com.google.firebase.firestore.DocumentSnapshot): String {
+                val ref = doc.getDocumentReference("provider") ?: return ""
+                return providerNameCache.getOrPut(ref.path) {
+                    runCatching { ref.get().await().getString("displayName").orEmpty() }.getOrDefault("")
                 }
+            }
+
+            suspend fun serviceNameFor(doc: com.google.firebase.firestore.DocumentSnapshot): String {
+                val ref = doc.getDocumentReference("service") ?: return ""
+                return serviceNameCache.getOrPut(ref.path) {
+                    runCatching { ref.get().await().getString("title").orEmpty() }.getOrDefault("")
+                }
+            }
+
+            suspend fun typeLabelFor(doc: com.google.firebase.firestore.DocumentSnapshot): String {
+                val categoryId = doc.getDocumentReference("category")?.id
+                    ?: doc.getString("category")?.trim().orEmpty()
+                if (categoryId.isBlank()) return ""
+                return categoryLabelCache.getOrPut(categoryId) {
+                    runCatching { categories.document(categoryId).get().await().getString("label").orEmpty() }
+                        .getOrDefault("")
+                        .trim()
+                }
+            }
+
+            docs.map { doc ->
+                val dateStr = doc.getTimestamp("bookingDate")?.let { ts ->
+                    SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()).format(ts.toDate())
+                }.orEmpty()
+                val timeStr = doc.getString("timeSlot").orEmpty()
+                val scheduledAtMillis = doc.getTimestamp("scheduledAt")?.toDate()?.time
+                    ?: computeScheduledAt(doc.getTimestamp("bookingDate"), timeStr)?.toDate()?.time
+                    ?: 0L
+                val priceStr = doc.getDouble("hourlyRate")?.let { "$${it.toInt()}/hr" }
+                    ?: doc.getLong("hourlyRate")?.toDouble()?.let { "$${it.toInt()}/hr" }
+                    ?: ""
+                CustomerBooking(
+                    id           = doc.id,
+                    providerName = providerNameFor(doc),
+                    typeLabel    = typeLabelFor(doc),
+                    providerRating = doc.getDouble("providerRating")?.toFloat()
+                        ?: doc.getLong("providerRating")?.toFloat(),
+                    customerRating = doc.getDouble("customerRating")?.toFloat()
+                        ?: doc.getLong("customerRating")?.toFloat(),
+                    serviceName  = serviceNameFor(doc),
+                    price        = priceStr,
+                    date         = dateStr,
+                    time         = timeStr,
+                    status       = doc.getString("status") ?: "pending",
+                    address      = doc.getString("address").orEmpty(),
+                    scheduledAtMillis = scheduledAtMillis,
+                    createdAtMillis = doc.getTimestamp("createdAt")
+                        ?.toDate()?.time ?: 0L,
+                )
+            }
                 .sortedByDescending { it.createdAtMillis }
         }.getOrDefault(emptyList())
     }
+
+    private fun computeScheduledAt(date: Timestamp?, timeSlot: String): Timestamp? {
+        if (date == null) return null
+        val t = timeSlot.trim()
+        if (t.isBlank()) return null
+        val parsed = runCatching { SimpleDateFormat("h:mm a", Locale.getDefault()).parse(t) }.getOrNull()
+            ?: return null
+
+        val base = Calendar.getInstance().apply { time = date.toDate() }
+        val tm = Calendar.getInstance().apply { time = parsed }
+        base.set(Calendar.HOUR_OF_DAY, tm.get(Calendar.HOUR_OF_DAY))
+        base.set(Calendar.MINUTE, tm.get(Calendar.MINUTE))
+        base.set(Calendar.SECOND, 0)
+        base.set(Calendar.MILLISECOND, 0)
+        return Timestamp(base.time)
+    }
+
+    suspend fun deleteBooking(bookingId: String): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        Log.d(TAG, "deleteBooking uid=${uid.take(6)}… id=$bookingId")
+        bookings.document(bookingId).delete().await()
+        Unit
+    }
+
+    suspend fun rateProvider(bookingId: String, rating: Float): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        Log.d(TAG, "rateProvider uid=${uid.take(6)}… id=$bookingId rating=$rating")
+        bookings.document(bookingId).update("providerRating", rating.toDouble()).await()
+        Unit
+    }
+}
+
+private fun com.google.firebase.firestore.DocumentSnapshot.readPhotoUrls(): List<String> =
+    (get("photoUrls") as? List<*>)
+        ?.mapNotNull { it?.toString()?.trim()?.takeIf { s -> s.isNotEmpty() } }
+        ?: emptyList()
+
+private fun parseCartDateToTimestamp(dateStr: String): Timestamp? {
+    if (dateStr.isBlank()) return null
+    return runCatching {
+        val fmt = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
+        Timestamp(fmt.parse(dateStr)!!)
+    }.getOrNull()
+}
+
+private fun com.google.firebase.firestore.DocumentSnapshot.toCartLine(): CartItem? {
+    val serviceRef = getDocumentReference("service") ?: return null
+    val providerRef = getDocumentReference("provider") ?: return null
+    val categoryRef = getDocumentReference("category")
+    return CartItem(
+        lineDocumentId = id,
+        serviceId = serviceRef.id,
+        providerUid = providerRef.id,
+        categoryId = categoryRef?.id ?: "",
+        providerName = getString("providerNameCache") ?: "",
+        serviceName = getString("serviceNameCache") ?: "",
+        price = getString("priceLabel") ?: "",
+        hourlyRate = getDouble("hourlyRateSnapshot")
+            ?: getLong("hourlyRateSnapshot")?.toDouble() ?: 0.0,
+        lat = getGeoPoint("location")?.latitude ?: 0.0,
+        lon = getGeoPoint("location")?.longitude ?: 0.0,
+        address = getString("address") ?: "",
+        date = getString("scheduledDate") ?: "",
+        time = getString("scheduledTime") ?: "",
+        addedAtMillis = getTimestamp("addedAt")?.toDate()?.time ?: 0L,
+    )
 }
 
 /**
@@ -342,14 +590,14 @@ private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSum
     val uid = id.ifBlank { return null }
     val displayName = getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
         ?: fallbackName.takeIf { it.isNotBlank() }
-        ?: getString("name")?.trim()?.takeIf { it.isNotBlank() }
         ?: "Provider ${uid.take(6)}"
+    // Listing fields (description, rate, area) live on `services/*`, not provider_profiles.
     return CustomerProviderSummary(
         uid = uid,
         displayName = displayName,
         avgRating = getDouble("avgRating") ?: getLong("avgRating")?.toDouble() ?: 0.0,
         totalReviews = getLong("totalReviews")?.toInt() ?: 0,
-        serviceDescription = getString("serviceDescription").orEmpty(),
-        hourlyRate = getDouble("hourlyRate") ?: getLong("hourlyRate")?.toDouble() ?: 0.0,
+        serviceDescription = "",
+        hourlyRate = 0.0,
     )
 }

@@ -20,11 +20,11 @@ data class RequestDetailUiState(
     val request: ServiceRequest? = null,
     val isLoading: Boolean = true,
     val isActing: Boolean = false,
+    val currentRating: Float = 0f,
     val errorMessage: String? = null,
 )
 
 sealed interface RequestDetailEvent {
-    data class NavigateToActive(val bookingId: String) : RequestDetailEvent
     object NavigateBack : RequestDetailEvent
 }
 
@@ -70,7 +70,7 @@ class RequestDetailViewModel @AssistedInject constructor(
     fun accept() = viewModelScope.launch {
         _uiState.update { it.copy(isActing = true) }
         runCatching { repository.acceptRequest(bookingId) }
-            .onSuccess { _events.send(RequestDetailEvent.NavigateToActive(bookingId)) }
+            .onSuccess { _uiState.update { it.copy(isActing = false, errorMessage = null) } }
             .onFailure { e ->
                 _uiState.update { it.copy(isActing = false, errorMessage = e.localizedMessage) }
             }
@@ -83,5 +83,29 @@ class RequestDetailViewModel @AssistedInject constructor(
             .onFailure { e ->
                 _uiState.update { it.copy(isActing = false, errorMessage = e.localizedMessage) }
             }
+    }
+
+    fun setRating(rating: Float) {
+        _uiState.update { it.copy(currentRating = rating) }
+    }
+
+    fun completeService() = viewModelScope.launch {
+        val rating = _uiState.value.currentRating
+        if (rating <= 0f) {
+            _uiState.update { it.copy(errorMessage = "Please rate the customer first") }
+            return@launch
+        }
+
+        _uiState.update { it.copy(isActing = true, errorMessage = null) }
+
+        runCatching {
+            repository.rateCustomer(bookingId, rating)
+            repository.markDone(bookingId)
+        }.onSuccess {
+            _uiState.update { it.copy(isActing = false) }
+            _events.send(RequestDetailEvent.NavigateBack)
+        }.onFailure { e ->
+            _uiState.update { it.copy(isActing = false, errorMessage = e.localizedMessage) }
+        }
     }
 }

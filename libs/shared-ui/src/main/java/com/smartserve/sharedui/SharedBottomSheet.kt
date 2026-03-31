@@ -13,10 +13,12 @@ fun SharedBottomSheet(
     isOpen: Boolean,
     onOpenChange: (Boolean) -> Unit,
     sheetContent: @Composable () -> Unit,
+    /** When true, the sheet opens fully expanded instead of a collapsed peek. */
+    skipPartiallyExpanded: Boolean = false,
     content: @Composable (open: () -> Unit) -> Unit,
 ) {
     val sheetState: SheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = false,
+        skipPartiallyExpanded = skipPartiallyExpanded,
     )
 
     content {

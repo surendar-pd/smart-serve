@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,8 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.firebase.firestore.GeoPoint
 import com.smartserve.sharedauth.AuthViewModel
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedBottomSheet
@@ -38,12 +42,16 @@ import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
 import com.smartserve.sharedui.SharedTimePickerDialog
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
-import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.rememberCameraPositionState
+import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint as OsmGeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.Marker
+import android.content.Intent
+import android.net.Uri
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -85,8 +93,6 @@ fun ProfileScreen(
     val state by viewModel.uiState.collectAsState()
     val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     val serviceLabels = state.serviceOptions.map { it.title.ifBlank { "Service" } }
-    val mapPoint = LatLng(state.areaLat, state.areaLng)
-    val cameraPositionState = rememberCameraPositionState()
     var areaServiceExpanded by remember { mutableStateOf(false) }
     var availabilityServiceExpanded by remember { mutableStateOf(false) }
     var activeAvailabilityField by remember { mutableStateOf<ProfileAvailabilityField?>(null) }
@@ -120,26 +126,19 @@ fun ProfileScreen(
             SharedListItem(
                 title = "Services and Details",
                 leadingIcon = Icons.Filled.Build,
+                supportingText = "Your listings: category, pricing, description, and photos.",
                 onClick = onOpenServices,
             )
             SharedListItem(
                 title = "Serviceable Areas",
                 leadingIcon = Icons.Filled.LocationOn,
-                supportingText = buildString {
-                    val selected = state.serviceOptions.firstOrNull { it.id == state.selectedServiceId }
-                    append(selected?.title ?: "No service selected")
-                    append(" • Radius ${state.areaRadiusKm} km")
-                },
+                supportingText = "Map center and radius for each service.",
                 onClick = viewModel::openAreaSheet,
             )
             SharedListItem(
                 title = "Availability Hours",
                 leadingIcon = Icons.Filled.AccessTime,
-                supportingText = buildString {
-                    val selected = state.serviceOptions.firstOrNull { it.id == state.selectedServiceId }
-                    append(selected?.title ?: "No service selected")
-                    append(" • ${state.availabilityDays.joinToString(", ")} • ${state.availabilityStart}-${state.availabilityEnd}")
-                },
+                supportingText = "Days and time windows for each service.",
                 onClick = viewModel::openAvailabilitySheet,
             )
             SharedListItem(
@@ -173,133 +172,150 @@ fun ProfileScreen(
         isOpen = state.areaSheetOpen,
         onOpenChange = { if (!it) viewModel.closeAreaSheet() },
         sheetContent = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SharedText(text = "Serviceable Area", variant = SharedTextVariant.BodyStrong)
-                SharedDropdown(
-                    expanded = areaServiceExpanded,
-                    onExpandedChange = { areaServiceExpanded = it },
-                    options = serviceLabels,
-                    selectedOption = state.serviceOptions.firstOrNull { it.id == state.selectedServiceId }?.title,
-                    onOptionSelected = { label ->
-                        state.serviceOptions.firstOrNull { it.title == label }
-                            ?.let { viewModel.onSelectedServiceChange(it.id) }
+            if (state.serviceOptions.isEmpty()) {
+                ProfileServiceSheetEmpty(
+                    message = "Add a service first.",
+                    onAddService = {
+                        viewModel.closeAreaSheet()
+                        onOpenServices()
                     },
-                    label = "Service",
-                    modifier = Modifier.fillMaxWidth(),
+                    onClose = viewModel::closeAreaSheet,
                 )
-                GoogleMap(
+            } else {
+                val context = LocalContext.current
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp),
-                    cameraPositionState = cameraPositionState,
-                    properties = MapProperties(isMyLocationEnabled = false),
-                    uiSettings = MapUiSettings(zoomControlsEnabled = false, myLocationButtonEnabled = false),
-                    onMapClick = { latLng -> viewModel.setMapPoint(latLng.latitude, latLng.longitude) },
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    androidx.compose.runtime.LaunchedEffect(mapPoint) {
-                        cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(mapPoint, 12f))
+                    SharedText(text = "Serviceable Area", variant = SharedTextVariant.BodyStrong)
+                    SharedDropdown(
+                        expanded = areaServiceExpanded,
+                        onExpandedChange = { areaServiceExpanded = it },
+                        options = serviceLabels,
+                        selectedOption = state.serviceOptions.firstOrNull { it.id == state.selectedServiceId }?.title,
+                        onOptionSelected = { label ->
+                            state.serviceOptions.firstOrNull { it.title == label }
+                                ?.let { viewModel.onSelectedServiceChange(it.id) }
+                        },
+                        label = "Service",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OsmPointPickerMap(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp),
+                        point = GeoPoint(state.areaLat, state.areaLng),
+                        onPointPicked = { gp -> viewModel.setMapPoint(gp.latitude, gp.longitude) },
+                    )
+                    SharedTextField(
+                        value = state.areaRadiusKm,
+                        onValueChange = viewModel::onRadiusChange,
+                        label = "Radius (km)",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SharedButton(
+                            text = "Cancel",
+                            onClick = viewModel::closeAreaSheet,
+                            variant = SharedButtonVariant.Ghost,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SharedButton(
+                            text = "Save",
+                            onClick = viewModel::saveArea,
+                            modifier = Modifier.weight(1f),
+                            loading = state.isSaving,
+                            enabled = !state.isSaving && state.selectedServiceId.isNotBlank(),
+                        )
                     }
-                    com.google.maps.android.compose.Marker(
-                        state = com.google.maps.android.compose.MarkerState(position = mapPoint),
-                        title = "Service center",
-                    )
-                }
-                SharedTextField(
-                    value = state.areaRadiusKm,
-                    onValueChange = viewModel::onRadiusChange,
-                    label = "Radius (km)",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SharedButton(
-                        text = "Cancel",
-                        onClick = viewModel::closeAreaSheet,
-                        variant = SharedButtonVariant.Ghost,
-                        modifier = Modifier.weight(1f),
-                    )
-                    SharedButton(
-                        text = "Save",
-                        onClick = viewModel::saveArea,
-                        modifier = Modifier.weight(1f),
-                        loading = state.isSaving,
-                        enabled = !state.isSaving,
-                    )
                 }
             }
         },
-    ) { }
+        skipPartiallyExpanded = true,
+        content = { },
+    )
 
     SharedBottomSheet(
         isOpen = state.availabilitySheetOpen,
         onOpenChange = { if (!it) viewModel.closeAvailabilitySheet() },
         sheetContent = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SharedText(text = "Availability Hours", variant = SharedTextVariant.BodyStrong)
-                SharedDropdown(
-                    expanded = availabilityServiceExpanded,
-                    onExpandedChange = { availabilityServiceExpanded = it },
-                    options = serviceLabels,
-                    selectedOption = state.serviceOptions.firstOrNull { it.id == state.selectedServiceId }?.title,
-                    onOptionSelected = { label ->
-                        state.serviceOptions.firstOrNull { it.title == label }
-                            ?.let { viewModel.onSelectedServiceChange(it.id) }
+            if (state.serviceOptions.isEmpty()) {
+                ProfileServiceSheetEmpty(
+                    message = "Add a service first.",
+                    onAddService = {
+                        viewModel.closeAvailabilitySheet()
+                        onOpenServices()
                     },
-                    label = "Service",
-                    modifier = Modifier.fillMaxWidth(),
+                    onClose = viewModel::closeAvailabilitySheet,
                 )
-                daysOfWeek.chunked(4).forEach { rowDays ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        rowDays.forEach { day ->
-                            SharedChip(
-                                label = day,
-                                selected = day in state.availabilityDays,
-                                onSelectedChange = { viewModel.toggleAvailabilityDay(day) },
-                            )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SharedText(text = "Availability Hours", variant = SharedTextVariant.BodyStrong)
+                    SharedDropdown(
+                        expanded = availabilityServiceExpanded,
+                        onExpandedChange = { availabilityServiceExpanded = it },
+                        options = serviceLabels,
+                        selectedOption = state.serviceOptions.firstOrNull { it.id == state.selectedServiceId }?.title,
+                        onOptionSelected = { label ->
+                            state.serviceOptions.firstOrNull { it.title == label }
+                                ?.let { viewModel.onSelectedServiceChange(it.id) }
+                        },
+                        label = "Service",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    daysOfWeek.chunked(4).forEach { rowDays ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowDays.forEach { day ->
+                                SharedChip(
+                                    label = day,
+                                    selected = day in state.availabilityDays,
+                                    onSelectedChange = { viewModel.toggleAvailabilityDay(day) },
+                                )
+                            }
                         }
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SharedButton(
-                        text = if (state.availabilityStart.isBlank()) "From" else state.availabilityStart,
-                        onClick = { activeAvailabilityField = ProfileAvailabilityField.Start },
-                        modifier = Modifier.weight(1f),
-                        variant = SharedButtonVariant.Outline,
-                    )
-                    SharedButton(
-                        text = if (state.availabilityEnd.isBlank()) "To" else state.availabilityEnd,
-                        onClick = { activeAvailabilityField = ProfileAvailabilityField.End },
-                        modifier = Modifier.weight(1f),
-                        variant = SharedButtonVariant.Outline,
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SharedButton(
-                        text = "Cancel",
-                        onClick = viewModel::closeAvailabilitySheet,
-                        variant = SharedButtonVariant.Ghost,
-                        modifier = Modifier.weight(1f),
-                    )
-                    SharedButton(
-                        text = "Save",
-                        onClick = viewModel::saveAvailability,
-                        modifier = Modifier.weight(1f),
-                        loading = state.isSaving,
-                        enabled = !state.isSaving,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SharedButton(
+                            text = if (state.availabilityStart.isBlank()) "From" else state.availabilityStart,
+                            onClick = { activeAvailabilityField = ProfileAvailabilityField.Start },
+                            modifier = Modifier.weight(1f),
+                            variant = SharedButtonVariant.Outline,
+                        )
+                        SharedButton(
+                            text = if (state.availabilityEnd.isBlank()) "To" else state.availabilityEnd,
+                            onClick = { activeAvailabilityField = ProfileAvailabilityField.End },
+                            modifier = Modifier.weight(1f),
+                            variant = SharedButtonVariant.Outline,
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SharedButton(
+                            text = "Cancel",
+                            onClick = viewModel::closeAvailabilitySheet,
+                            variant = SharedButtonVariant.Ghost,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SharedButton(
+                            text = "Save",
+                            onClick = viewModel::saveAvailability,
+                            modifier = Modifier.weight(1f),
+                            loading = state.isSaving,
+                            enabled = !state.isSaving && state.selectedServiceId.isNotBlank(),
+                        )
+                    }
                 }
             }
         },
-    ) { }
+        skipPartiallyExpanded = true,
+        content = { },
+    )
 
     val (initialHour, initialMinute) = when (activeAvailabilityField) {
         ProfileAvailabilityField.Start -> parseTimeForPicker(state.availabilityStart, defaultHour = 9)
@@ -321,4 +337,98 @@ fun ProfileScreen(
             activeAvailabilityField = null
         },
     )
+}
+
+@Composable
+private fun ProfileServiceSheetEmpty(
+    message: String,
+    onAddService: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SharedText(text = message, variant = SharedTextVariant.BodyStrong)
+        SharedButton(
+            text = "Add service",
+            onClick = onAddService,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        SharedButton(
+            text = "Close",
+            onClick = onClose,
+            modifier = Modifier.fillMaxWidth(),
+            variant = SharedButtonVariant.Ghost,
+        )
+    }
+}
+
+@Composable
+private fun OsmPointPickerMap(
+    modifier: Modifier,
+    point: GeoPoint,
+    onPointPicked: (GeoPoint) -> Unit,
+) {
+    val context = LocalContext.current
+
+    // OSMDroid requires a user agent; cache dirs help tile loading.
+    DisposableEffect(Unit) {
+        Configuration.getInstance().userAgentValue = context.packageName
+        Configuration.getInstance().osmdroidBasePath = context.cacheDir
+        Configuration.getInstance().osmdroidTileCache = File(context.cacheDir, "osmdroid")
+        onDispose { }
+    }
+
+    val osmPoint = remember(point.latitude, point.longitude) { OsmGeoPoint(point.latitude, point.longitude) }
+
+    val mapView = remember {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            controller.setZoom(14.0)
+        }
+    }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { mapView },
+        update = { mv ->
+            // Center camera reliably
+            mv.controller.setCenter(osmPoint)
+
+            // Clear + add marker + tap overlay
+            mv.overlays.removeAll { it is Marker || it is MapEventsOverlay }
+            val marker = Marker(mv).apply {
+                position = osmPoint
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                title = "Service center"
+            }
+            mv.overlays.add(marker)
+            mv.overlays.add(
+                MapEventsOverlay(object : MapEventsReceiver {
+                    override fun singleTapConfirmedHelper(p: OsmGeoPoint?): Boolean {
+                        p ?: return false
+                        onPointPicked(GeoPoint(p.latitude, p.longitude))
+                        return true
+                    }
+
+                    override fun longPressHelper(p: OsmGeoPoint?): Boolean {
+                        p ?: return false
+                        onPointPicked(GeoPoint(p.latitude, p.longitude))
+                        return true
+                    }
+                }),
+            )
+            mv.invalidate()
+        },
+    )
+
+    // Required MapView lifecycle for tiles to load.
+    DisposableEffect(mapView) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
 }

@@ -6,7 +6,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
@@ -46,10 +45,8 @@ class AuthRepository @Inject constructor(
             val resolvedRole =
                 if (role == UserRole.PROVIDER.value) UserRole.PROVIDER.value else UserRole.CUSTOMER.value
             syncDisplayNameToAuth(firebaseUser, fullName)
-            commitFirestoreUser(firebaseUser.uid, resolvedRole)
-            // Seed provider_profiles with the display name immediately on sign-up so that
-            // even if Firebase Auth is stale when the profile-setup screen calls saveProviderProfile,
-            // the Firestore document already has the correct name.
+            commitFirestoreUser(firebaseUser.uid, resolvedRole, displayName = fullName)
+            // Seed provider_profiles on sign-up; full listings are added from the provider app.
             if (resolvedRole == UserRole.PROVIDER.value) {
                 val profileSeed = mutableMapOf<String, Any>(
                     "displayName" to fullName.trim()
@@ -85,7 +82,11 @@ class AuthRepository @Inject constructor(
             if (result.additionalUserInfo?.isNewUser == true) {
                 val resolvedRole =
                     if (role == UserRole.PROVIDER.value) UserRole.PROVIDER.value else UserRole.CUSTOMER.value
-                commitFirestoreUser(firebaseUser.uid, resolvedRole)
+                commitFirestoreUser(
+                    firebaseUser.uid,
+                    resolvedRole,
+                    displayName = firebaseUser.displayName?.trim().orEmpty(),
+                )
             }
             AuthResult.Success(firebaseUser)
         } catch (e: Exception) {
@@ -117,10 +118,7 @@ class AuthRepository @Inject constructor(
                 .document(uid)
                 .get(com.google.firebase.firestore.Source.SERVER)
                 .await()
-            doc.exists() && (
-                doc.getDocumentReference("category") != null ||
-                    doc.getString("serviceCategory")?.isNotBlank() == true
-                )
+            doc.exists() && doc.getString("displayName")?.isNotBlank() == true
         }
     } catch (e: Exception) {
         false
@@ -182,6 +180,11 @@ class AuthRepository @Inject constructor(
         photoUrl: String?
     ): Result<Unit> {
         return try {
+            val displayName = auth.currentUser
+                ?.takeIf { it.uid == uid }
+                ?.displayName
+                ?.trim()
+                .orEmpty()
             val prefs = CustomerProfile(
                 uid = uid,
                 phone = phone?.takeIf { it.isNotBlank() },
@@ -190,7 +193,17 @@ class AuthRepository @Inject constructor(
                 pushNotifications = pushNotifications,
                 smartSuggestions = true
             )
-            firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(uid).set(prefs).await()
+            val data = mutableMapOf<String, Any>(
+                "homeAddress" to prefs.homeAddress,
+                "locationAwareness" to prefs.locationAwareness,
+                "pushNotifications" to prefs.pushNotifications,
+                "smartSuggestions" to prefs.smartSuggestions,
+            )
+            if (!prefs.phone.isNullOrBlank()) data["phone"] = prefs.phone
+            if (displayName.isNotBlank()) data["displayName"] = displayName
+            firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(uid)
+                .set(data, SetOptions.merge())
+                .await()
             syncAuthProfileFromStrings(uid, displayName = null, photoUrl = photoUrl)
             Result.success(Unit)
         } catch (e: Exception) {
@@ -223,20 +236,25 @@ class AuthRepository @Inject constructor(
                 photoUrl = photoUrl
             )
 
-            val profile = ProviderServiceProfile(
-                uid = uid,
-                displayName = resolvedDisplayName,
-                phone = resolvedPhone,
-                serviceCategory = serviceCategory,
-                serviceDescription = serviceDescription,
-                hourlyRate = hourlyRate,
-                serviceCenter = serviceCenter,
-                serviceRadiusKm = serviceRadiusKm,
-            )
             val providerDocRef = firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid)
 
+            val providerCore = mutableMapOf<String, Any>(
+                "displayName" to resolvedDisplayName,
+                "phone" to resolvedPhone,
+                "updatedAt" to Timestamp.now(),
+            )
+            if (!existing.exists()) {
+                providerCore["createdAt"] = Timestamp.now()
+            }
+
+            resolvedDisplayName.trim().takeIf { it.isNotBlank() }?.let { name ->
+                firestore.collection(AuthCollections.USERS).document(uid)
+                    .set(mapOf("displayName" to name, "updatedAt" to Timestamp.now()), SetOptions.merge())
+                    .await()
+            }
+
             if (serviceCategory.isBlank()) {
-                providerDocRef.set(profile).await()
+                providerDocRef.set(providerCore, SetOptions.merge()).await()
             } else {
                 val categoryDocRef = firestore.collection(AuthCollections.CATEGORIES).document(serviceCategory)
                 val serviceDocRef = firestore.collection(AuthCollections.SERVICES).document(uid)
@@ -254,28 +272,20 @@ class AuthRepository @Inject constructor(
                     "availabilityEnd" to DefaultServiceAvailability.END,
                     "updatedAt" to Timestamp.now(),
                 )
+                serviceCenter?.let { serviceListing["serviceCenter"] = it }
+                serviceListing["serviceRadiusKm"] = serviceRadiusKm
                 if (!serviceSnap.exists()) {
                     serviceListing["createdAt"] = Timestamp.now()
                 }
 
                 val batch = firestore.batch()
-                batch.set(providerDocRef, profile)
+                batch.set(providerDocRef, providerCore, SetOptions.merge())
                 batch.set(
                     providerDocRef,
                     mapOf("category" to categoryDocRef),
                     SetOptions.merge(),
                 )
                 batch.set(serviceDocRef, serviceListing, SetOptions.merge())
-                if (serviceSnap.exists()) {
-                    batch.update(
-                        serviceDocRef,
-                        mapOf(
-                            "phone" to FieldValue.delete(),
-                            "serviceRadiusKm" to FieldValue.delete(),
-                            "serviceCenter" to FieldValue.delete(),
-                        ),
-                    )
-                }
                 batch.commit().await()
             }
             Result.success(Unit)
@@ -318,13 +328,17 @@ class AuthRepository @Inject constructor(
        }
 
     /** Role + timestamps only; identity lives on [FirebaseUser]. */
-    private suspend fun commitFirestoreUser(uid: String, role: String) {
+    private suspend fun commitFirestoreUser(uid: String, role: String, displayName: String? = null) {
         val docRef = firestore.collection(AuthCollections.USERS).document(uid)
         val snap = docRef.get().await()
         val data = mutableMapOf<String, Any>(
             "role" to role,
             "updatedAt" to Timestamp.now()
         )
+        displayName
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { data["displayName"] = it }
         if (!snap.exists()) {
             data["createdAt"] = Timestamp.now()
         }

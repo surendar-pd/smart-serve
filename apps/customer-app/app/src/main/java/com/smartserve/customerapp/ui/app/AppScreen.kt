@@ -1,5 +1,6 @@
 package com.smartserve.customerapp.ui.app
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -8,12 +9,15 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.customerapp.ui.layouts.AppLayout
 import com.smartserve.customerapp.ui.layouts.AppTab
 
@@ -21,6 +25,10 @@ import com.smartserve.customerapp.ui.layouts.AppTab
 fun AppScreen(
     onLogout: () -> Unit,
 ) {
+    val activity = LocalContext.current as ComponentActivity
+    val cartViewModel: CartViewModel = hiltViewModel(activity)
+    val cartItems by cartViewModel.cartItems.collectAsState()
+
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     // ── Home tab navigation stack ────────────────────────────────────────────
@@ -36,8 +44,9 @@ fun AppScreen(
     var searchProviderName   by remember { mutableStateOf("") }
     var searchSelectedService by remember { mutableStateOf<CustomerServiceListing?>(null) }
 
-    // ── Cart ─────────────────────────────────────────────────────────────────
-    var cartItems by remember { mutableStateOf(listOf<CartItem>()) }
+    // ── Bookings tab navigation stack ────────────────────────────────────────
+    var selectedBooking by remember { mutableStateOf<CustomerBooking?>(null) }
+    var chatBookingId by remember { mutableStateOf<String?>(null) }
 
     val tabs = listOf(
         AppTab(title = "Home",     icon = Icons.Filled.Home),
@@ -61,17 +70,6 @@ fun AppScreen(
         searchProviderName    = ""
     }
 
-    /** Add item only if the same (providerUid, serviceId, date, time) isn't already in cart. */
-    fun addToCart(item: CartItem) {
-        val isDuplicate = cartItems.any { existing ->
-            existing.providerUid == item.providerUid &&
-            existing.serviceId   == item.serviceId   &&
-            existing.date        == item.date         &&
-            existing.time        == item.time
-        }
-        if (!isDuplicate) cartItems = cartItems + item
-    }
-
     AppLayout(
         currentTabIndex = selectedTabIndex,
         tabs = tabs,
@@ -88,12 +86,15 @@ fun AppScreen(
                     selectedService != null -> BookingScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         service  = selectedService!!,
+                        cartItems = cartItems,
+                        categoryId = selectedCategoryId,
                         onBack   = { selectedService = null },
                         onAddToCart = { item ->
-                            addToCart(item)
-                            selectedService     = null
-                            selectedProviderUid = ""
-                            selectedTabIndex    = 2
+                            cartViewModel.addToCart(item) {
+                                selectedService     = null
+                                selectedProviderUid = ""
+                                selectedTabIndex    = 2
+                            }
                         },
                     )
                     selectedProviderUid.isNotEmpty() -> ServiceListScreen(
@@ -135,11 +136,14 @@ fun AppScreen(
                     searchSelectedService != null -> BookingScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         service  = searchSelectedService!!,
+                        cartItems = cartItems,
+                        categoryId = "",
                         onBack   = { searchSelectedService = null },
                         onAddToCart = { item ->
-                            addToCart(item)
-                            clearSearchStack()
-                            selectedTabIndex = 2
+                            cartViewModel.addToCart(item) {
+                                clearSearchStack()
+                                selectedTabIndex = 2
+                            }
                         },
                     )
                     searchProviderUid.isNotEmpty() -> ServiceListScreen(
@@ -163,15 +167,30 @@ fun AppScreen(
                 2 -> CartScreen(
                     modifier     = Modifier.fillMaxSize().padding(innerPadding),
                     cartItems    = cartItems,
-                    onRemoveItem = { cartItems = cartItems - it },
-                    onConfirm    = {
-                        cartItems        = emptyList()
-                        selectedTabIndex = 3         // go to Bookings after confirming
-                    },
+                    onRemoveItem = cartViewModel::removeFromCart,
+                    onConfirm    = { selectedTabIndex = 3 },
+                    viewModel    = cartViewModel,
                 )
 
                 // ── Bookings ─────────────────────────────────────────────────
-                3 -> BookingsScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
+                3 -> when {
+                    chatBookingId != null -> ChatScreen(
+                        bookingId = chatBookingId!!,
+                        onBack = { chatBookingId = null },
+                        topPadding = innerPadding.calculateTopPadding(),
+                        bottomPadding = innerPadding.calculateBottomPadding(),
+                    )
+                    selectedBooking != null -> BookingDetailScreen(
+                        booking = selectedBooking!!,
+                        onBack = { selectedBooking = null },
+                        onOpenChat = { id -> chatBookingId = id },
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    )
+                    else -> BookingsScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onSelectBooking = { selectedBooking = it },
+                    )
+                }
             }
         },
     )

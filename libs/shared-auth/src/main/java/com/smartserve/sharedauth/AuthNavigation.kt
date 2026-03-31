@@ -15,10 +15,8 @@ object AuthRoutes {
     const val SIGNUP_PROVIDER = "signup_provider"
     const val FORGOT_PASSWORD = "forgot_password"
     const val CUSTOMER_PROFILE_SETUP = "customer_profile_setup/{uid}"
-    const val PROVIDER_PROFILE_SETUP = "provider_profile_setup/{uid}"
 
     fun customerProfileSetup(uid: String) = "customer_profile_setup/$uid"
-    fun providerProfileSetup(uid: String) = "provider_profile_setup/$uid"
 }
 
 fun NavGraphBuilder.authNavGraph(
@@ -51,9 +49,6 @@ fun NavGraphBuilder.authNavGraph(
             onNavigateToCustomerSetup = { uid ->
                 navController.navigate(AuthRoutes.customerProfileSetup(uid))
             },
-            onNavigateToProviderSetup = { uid ->
-                navController.navigate(AuthRoutes.providerProfileSetup(uid))
-            }
         )
     }
 
@@ -75,11 +70,9 @@ fun NavGraphBuilder.authNavGraph(
         SignUpProviderScreen(
             viewModel = vm,
             onBack = { navController.popBackStack() },
-            onNavigateToProfileSetup = { uid ->
-                navController.navigate(AuthRoutes.providerProfileSetup(uid)) {
-                    popUpTo(AuthRoutes.SIGNUP_PROVIDER) { inclusive = true }
-                }
-            }
+            onNavigateToProviderHome = {
+                onNavigateToProviderHome()
+            },
         )
     }
 
@@ -104,16 +97,4 @@ fun NavGraphBuilder.authNavGraph(
         )
     }
 
-    composable(
-        route = AuthRoutes.PROVIDER_PROFILE_SETUP,
-        arguments = listOf(navArgument("uid") { type = NavType.StringType })
-    ) { backStack ->
-        val uid = backStack.arguments?.getString("uid") ?: ""
-        val vm: ProviderProfileViewModel = hiltViewModel()
-        ProviderProfileSetupScreen(
-            uid = uid,
-            viewModel = vm,
-            onStart = { onNavigateToProviderHome() }
-        )
-    }
 }

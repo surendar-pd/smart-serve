@@ -156,9 +156,19 @@ class ProfileViewModel @Inject constructor(
                         "homeAddress" to s.homeAddress,
                         "locationAwareness" to s.locationAwareness,
                         "pushNotifications" to s.pushNotifications,
+                        // Keep a denormalized name on the profile for easy lookup.
+                        "displayName" to (auth.currentUser?.displayName ?: s.name).orEmpty(),
                     ),
                     SetOptions.merge(),
                 ).await()
+            // Provider app resolves customer name from `customer_profiles` then `users`.
+            // Ensure `users/{uid}.displayName` is present too.
+            val resolvedName = (auth.currentUser?.displayName ?: s.name).trim()
+            if (resolvedName.isNotBlank()) {
+                firestore.collection(AuthCollections.USERS).document(user.uid)
+                    .set(mapOf("displayName" to resolvedName), SetOptions.merge())
+                    .await()
+            }
             repo.setHomeAddressCache(s.homeAddress)
             _state.update { it.copy(isSaving = false, savedOk = true) }
         } catch (e: Exception) {

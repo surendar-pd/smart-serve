@@ -1,15 +1,14 @@
 package com.smartserve.providerapp.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
 import com.google.firebase.auth.FirebaseAuth
 import com.smartserve.sharedauth.AuthRoutes
+import com.smartserve.sharedauth.SessionBootstrapRoute
+import com.smartserve.sharedauth.UserRole
 import com.smartserve.sharedauth.authNavGraph
 import com.smartserve.providerapp.ui.app.AppScreen
 
@@ -17,17 +16,20 @@ import com.smartserve.providerapp.ui.app.AppScreen
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    val startDestination by rememberSaveable {
-        mutableStateOf(
-            if (FirebaseAuth.getInstance().currentUser != null) Routes.App
-            else Routes.Auth
-        )
-    }
-
     NavHost(
         navController    = navController,
-        startDestination = startDestination,
+        startDestination = Routes.Bootstrap,
     ) {
+        composable(Routes.Bootstrap) {
+            SessionBootstrapRoute(
+                navController = navController,
+                bootstrapRoute = Routes.Bootstrap,
+                appRoute = Routes.App,
+                authRoute = Routes.Auth,
+                expectedAppRole = UserRole.PROVIDER.value,
+            )
+        }
+
         navigation(
             route            = Routes.Auth,
             startDestination = AuthRoutes.INTRO_PROVIDER,

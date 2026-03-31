@@ -8,6 +8,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 
 /**
  * Read-only star rating display (e.g. 4.5 shows 4 full stars + half).
@@ -18,6 +21,7 @@ fun SharedRating(
     rating: Float,
     modifier: Modifier = Modifier,
     maxStars: Int = 5,
+    starSize: Dp = 18.dp,
 ) {
     val color = MaterialTheme.colorScheme.primary
     Row(modifier = modifier) {
@@ -27,6 +31,7 @@ fun SharedRating(
                 imageVector = if (value >= 1f) Icons.Default.Star else Icons.Default.StarBorder,
                 contentDescription = null,
                 tint = if (value >= 1f) color else color.copy(alpha = 0.4f),
+                modifier = Modifier.size(starSize),
             )
         }
     }

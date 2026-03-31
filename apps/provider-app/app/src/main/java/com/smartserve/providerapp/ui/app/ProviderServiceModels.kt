@@ -10,7 +10,7 @@ import com.smartserve.sharedauth.DefaultServiceAvailability
  * **Refs + listing:** `provider`, `category`, `title`, `description`, `hourlyRate`, `isActive`,
  * `availabilityDays`, `availabilityStart`, `availabilityEnd`, timestamps.
  *
- * Phone, map center, and service radius are on [com.smartserve.sharedauth.ProviderServiceProfile] only.
+ * Optional map center and service radius live on each `services/{id}` doc when the provider sets coverage.
  */
 data class ProviderServiceRow(
     val id: String,

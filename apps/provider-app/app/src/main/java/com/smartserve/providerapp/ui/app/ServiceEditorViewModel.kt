@@ -217,6 +217,9 @@ class ServiceEditorViewModel @Inject constructor(
 
             createResult
                 .onSuccess { createdId ->
+                    // Same session must update this doc if the user saves again (e.g. after a failed upload).
+                    editingServiceId = createdId
+ 
                     if (s.pendingPhotoUris.isEmpty()) {
                         _state.update { it.copy(saving = false, savedOk = true, uploadProgress = 0f) }
                         return@onSuccess

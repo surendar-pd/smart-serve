@@ -19,10 +19,10 @@ fun SharedScreenHeader(
     Column(modifier = modifier.fillMaxWidth()) {
         SharedText(
             text = title,
-            variant = SharedTextVariant.Title,
-            fontWeight = FontWeight.Bold,
+            variant = SharedTextVariant.ScreenTitle,
+            fontWeight = FontWeight.Medium,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         SharedText(
             text = subtitle,
             variant = SharedTextVariant.Body,

@@ -15,7 +15,7 @@ import javax.inject.Inject
 data class HomeUiState(
     val isLoading: Boolean = true,
     val isOnline: Boolean = true,
-    val activeFilter: RequestStatus? = null,
+    val activeFilter: RequestStatus = RequestStatus.PENDING,
     val requests: List<ServiceRequest> = emptyList(),
     val errorMessage: String? = null,
 )
@@ -50,12 +50,11 @@ class HomeViewModel @Inject constructor(
 
     fun toggleOnline() = _uiState.update { it.copy(isOnline = !it.isOnline) }
 
-    fun setFilter(status: RequestStatus?) =
+    fun setFilter(status: RequestStatus) =
         _uiState.update { it.copy(activeFilter = status) }
 
     fun filteredRequests(): List<ServiceRequest> {
         val s = _uiState.value
-        return if (s.activeFilter == null) s.requests
-        else s.requests.filter { it.status == s.activeFilter }
+        return s.requests.filter { it.status == s.activeFilter }
     }
 }

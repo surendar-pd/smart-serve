@@ -4,7 +4,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.firestore.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
@@ -49,7 +48,6 @@ sealed class AuthNavDestination {
     data class CustomerHome(val uid: String) : AuthNavDestination()
     data class ProviderHome(val uid: String) : AuthNavDestination()
     data class CustomerProfileSetup(val uid: String) : AuthNavDestination()
-    data class ProviderProfileSetup(val uid: String) : AuthNavDestination()
 }
 
 @HiltViewModel
@@ -155,12 +153,30 @@ class AuthViewModel @Inject constructor(
             s.signUpEmail, s.signUpPassword, s.signUpFullName, "provider", s.signUpPhone
         )) {
             is AuthResult.Success -> {
-                Log.d(TAG, "signUpProvider SUCCESS — uid=${result.user.uid}")
-                _uiState.update {
-                    it.copy(
-                        isLoading  = false,
-                        navigateTo = AuthNavDestination.ProviderProfileSetup(result.user.uid),
-                    )
+                val uid = result.user.uid
+                Log.d(TAG, "signUpProvider SUCCESS — uid=$uid")
+                repository.saveProviderProfile(
+                    uid = uid,
+                    displayName = s.signUpFullName.trim(),
+                    phone = s.signUpPhone.trim(),
+                    photoUrl = null,
+                    serviceCategory = "",
+                    serviceDescription = "",
+                    hourlyRate = 0.0,
+                    serviceCenter = null,
+                    serviceRadiusKm = 10.0,
+                ).onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            navigateTo = AuthNavDestination.ProviderHome(uid),
+                        )
+                    }
+                }.onFailure { e ->
+                    Log.e(TAG, "saveProviderProfile after sign-up FAILED — ${e.localizedMessage}")
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = e.localizedMessage ?: "Could not save profile")
+                    }
                 }
             }
             is AuthResult.Error -> {
@@ -228,18 +244,17 @@ class AuthViewModel @Inject constructor(
         Log.d(TAG, "routeAfterAuth() — uid=$uid resolvedRole=$resolvedRole expectedAppRole=$expectedAppRole")
         val roleForRouting =
             if (resolvedRole == UserRole.BOTH.value) expectedAppRole else resolvedRole
-        val profileDone = repository.isProfileSetupComplete(uid, roleForRouting)
-        Log.d(TAG, "isProfileSetupComplete=$profileDone for roleForRouting=$roleForRouting")
-        val destination = if (!profileDone) {
-            if (roleForRouting == UserRole.PROVIDER.value)
-                AuthNavDestination.ProviderProfileSetup(uid)
-            else
-                AuthNavDestination.CustomerProfileSetup(uid)
-        } else {
-            if (roleForRouting == UserRole.PROVIDER.value)
+        val destination = when (roleForRouting) {
+            UserRole.PROVIDER.value -> {
+                Log.d(TAG, "Provider session — go to app (services added from Profile later)")
                 AuthNavDestination.ProviderHome(uid)
-            else
-                AuthNavDestination.CustomerHome(uid)
+            }
+            else -> {
+                val profileDone = repository.isProfileSetupComplete(uid, roleForRouting)
+                Log.d(TAG, "isProfileSetupComplete=$profileDone for customer")
+                if (!profileDone) AuthNavDestination.CustomerProfileSetup(uid)
+                else AuthNavDestination.CustomerHome(uid)
+            }
         }
         Log.d(TAG, "navigateTo set to: $destination")
         _uiState.update { it.copy(isLoading = false, navigateTo = destination) }
@@ -394,134 +409,4 @@ class CustomerProfileViewModel @Inject constructor(
             _state.update { it.copy(isLoading = false, errorMessage = e.localizedMessage) }
         }
     }
-}
-
-// ── ProviderProfileViewModel ──────────────────────────────────────────────────
-
-data class ProviderProfileUiState(
-    val isLoading: Boolean = false,
-    val errorMessage: String? = null,
-    val photoUri: Uri? = null,
-    /** Firestore `categories` document id. */
-    val serviceCategory: String = "",
-    val categoryOptions: List<ServiceCategoryOption> = emptyList(),
-    val categoriesLoading: Boolean = true,
-    val isSavingCategory: Boolean = false,
-    val serviceDescription: String = "",
-    val hourlyRate: String = "",
-    val serviceCenter: GeoPoint? = null,
-    val serviceRadiusKm: Double = 10.0,
-)
-
-@HiltViewModel
-class ProviderProfileViewModel @Inject constructor(
-    private val repository: AuthRepository,
-) : ViewModel() {
-
-    private val _state = MutableStateFlow(ProviderProfileUiState())
-    val state: StateFlow<ProviderProfileUiState> = _state.asStateFlow()
-
-    private val _onboardingCompleted = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow    = BufferOverflow.DROP_OLDEST,
-    )
-    val onboardingCompleted: SharedFlow<Unit> = _onboardingCompleted.asSharedFlow()
-
-    private val _addCategoryCompleted = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
-    /** Emitted when [addServiceCategory] succeeds (e.g. to close the add-category dialog). */
-    val addCategoryCompleted: SharedFlow<Unit> = _addCategoryCompleted.asSharedFlow()
-
-    init {
-        loadCategories()
-    }
-
-    fun loadCategories() = viewModelScope.launch {
-        _state.update { it.copy(categoriesLoading = true) }
-        repository.listServiceCategories()
-            .onSuccess { list ->
-                _state.update { it.copy(categoryOptions = list, categoriesLoading = false) }
-            }
-            .onFailure { e ->
-                _state.update {
-                    it.copy(
-                        categoriesLoading = false,
-                        errorMessage = e.localizedMessage ?: "Could not load categories",
-                    )
-                }
-            }
-    }
-
-    fun addServiceCategory(label: String) = viewModelScope.launch {
-        _state.update { it.copy(isSavingCategory = true, errorMessage = null) }
-        repository.addServiceCategory(label)
-            .onSuccess { option ->
-                val merged = (_state.value.categoryOptions + option).sortedBy { o -> o.label.lowercase() }
-                _state.update {
-                    it.copy(
-                        categoryOptions = merged,
-                        serviceCategory = option.id,
-                        isSavingCategory = false,
-                    )
-                }
-                _addCategoryCompleted.emit(Unit)
-            }
-            .onFailure { e ->
-                _state.update {
-                    it.copy(
-                        isSavingCategory = false,
-                        errorMessage = e.localizedMessage ?: "Could not add category",
-                    )
-                }
-            }
-    }
-
-    fun onPhotoSelected(uri: Uri?) = _state.update { it.copy(photoUri = uri) }
-    fun onCategoryChange(v: String) = _state.update { it.copy(serviceCategory = v) }
-    fun onDescriptionChange(v: String) = _state.update { it.copy(serviceDescription = v) }
-    fun onHourlyRateChange(v: String) = _state.update { it.copy(hourlyRate = v) }
-    fun onServiceCenterChange(gp: GeoPoint) = _state.update { it.copy(serviceCenter = gp) }
-    fun onRadiusChange(r: Double) = _state.update { it.copy(serviceRadiusKm = r) }
-    fun clearError() = _state.update { it.copy(errorMessage = null) }
-
-    fun completeOnboarding(uid: String, displayName: String, phone: String) =
-        viewModelScope.launch {
-            Log.d(TAG, "ProviderProfileViewModel.completeOnboarding() — uid=$uid")
-            val s = _state.value
-            when {
-                s.serviceCategory.isBlank() -> {
-                    _state.update { it.copy(errorMessage = "Select a service category") }
-                    return@launch
-                }
-                s.serviceDescription.isBlank() -> {
-                    _state.update { it.copy(errorMessage = "Add a service description") }
-                    return@launch
-                }
-                s.hourlyRate.toDoubleOrNull() == null -> {
-                    _state.update { it.copy(errorMessage = "Enter a valid hourly rate") }
-                    return@launch
-                }
-            }
-            _state.update { it.copy(isLoading = true) }
-            repository.saveProviderProfile(
-                uid                = uid,
-                displayName        = displayName,
-                phone              = phone,
-                photoUrl           = s.photoUri?.toString(),
-                serviceCategory    = s.serviceCategory,
-                serviceDescription = s.serviceDescription,
-                hourlyRate         = s.hourlyRate.toDouble(),
-                serviceCenter      = s.serviceCenter,
-                serviceRadiusKm    = s.serviceRadiusKm,
-            ).onSuccess {
-                Log.d(TAG, "saveProviderProfile SUCCESS")
-                _state.update { it.copy(isLoading = false) }
-                _onboardingCompleted.emit(Unit)
-            }.onFailure { e ->
-                Log.e(TAG, "saveProviderProfile FAILED — ${e.localizedMessage}")
-                _state.update { it.copy(isLoading = false, errorMessage = e.localizedMessage) }
-            }
-        }
 }

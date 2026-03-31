@@ -1,7 +1,6 @@
 package com.smartserve.providerapp.ui.app
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,13 +28,12 @@ import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedEmptyState
 import com.smartserve.sharedui.SharedLoading
-import com.smartserve.sharedui.SharedRating
 import com.smartserve.sharedui.SharedTabs
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
 import androidx.compose.material3.MaterialTheme
 
-private val tabTitles = listOf("Upcoming", "Completed")
+private val tabTitles = listOf("Pending", "Active", "Completed")
 
 @Composable
 fun BookingsScreen(
@@ -62,6 +59,12 @@ fun BookingsScreen(
             SharedText(text = tabTitles[index], variant = SharedTextVariant.Label)
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        val pending = state.upcomingBookings.filter { it.status == RequestStatus.PENDING }
+        val active = state.upcomingBookings.filter { it.status == RequestStatus.ACTIVE }
+        val completed = state.pastBookings.filter { it.status == RequestStatus.COMPLETED }
+
         when {
             state.isLoading -> Box(
                 modifier         = Modifier.fillMaxSize(),
@@ -74,14 +77,32 @@ fun BookingsScreen(
             ) { SharedText(text = state.errorMessage!!, variant = SharedTextVariant.Body) }
 
             selectedTab == 0 -> {
-                if (state.upcomingBookings.isEmpty()) {
-                    SharedEmptyState(title = "No upcoming bookings")
+                if (pending.isEmpty()) {
+                    SharedEmptyState(title = "No pending bookings")
                 } else {
                     LazyColumn(
                         modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        items(state.upcomingBookings, key = { it.id }) { booking ->
+                        items(pending, key = { it.id }) { booking ->
+                            PastBookingCard(
+                                booking = booking,
+                                onClick = { onNavigateToRequestDetail(booking.id) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            selectedTab == 1 -> {
+                if (active.isEmpty()) {
+                    SharedEmptyState(title = "No active bookings")
+                } else {
+                    LazyColumn(
+                        modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(active, key = { it.id }) { booking ->
                             PastBookingCard(
                                 booking = booking,
                                 onClick = { onNavigateToRequestDetail(booking.id) },
@@ -92,9 +113,6 @@ fun BookingsScreen(
             }
 
             else -> {
-                val completed = state.pastBookings.filter {
-                    it.status == RequestStatus.COMPLETED || it.status == RequestStatus.DECLINED
-                }
                 if (completed.isEmpty()) {
                     SharedEmptyState(title = "No completed bookings yet")
                 } else {
@@ -123,7 +141,10 @@ fun BookingsScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             items(completed, key = { it.id }) { booking ->
-                                PastBookingCard(booking = booking)
+                                PastBookingCard(
+                                    booking = booking,
+                                    onClick = { onNavigateToRequestDetail(booking.id) },
+                                )
                             }
                         }
                     }
@@ -139,64 +160,26 @@ private fun PastBookingCard(
     onClick: (() -> Unit)? = null,
 ) {
     SharedCard(onClick = onClick ?: {}) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                verticalAlignment     = Alignment.CenterVertically,
-            ) {
-                SharedAvatar(
-                    name = booking.customerFirstName.ifBlank { booking.customerInitials },
-                    size = 36.dp,
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    SharedText(
-                        text = booking.customerFirstName,
-                        variant = SharedTextVariant.BodyStrong,
-                    )
-                    SharedText(text = booking.serviceType, variant = SharedTextVariant.Body)
-                }
-                val statusLabel = when (booking.status) {
-                    RequestStatus.COMPLETED -> "Completed"
-                    RequestStatus.DECLINED  -> "Declined"
-                    RequestStatus.ACTIVE    -> "Active"
-                    RequestStatus.PENDING   -> "Pending"
-                    RequestStatus.NEW       -> "New"
-                }
-                val statusBg: Color = when (booking.status) {
-                    RequestStatus.ACTIVE -> MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                    RequestStatus.PENDING, RequestStatus.NEW -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
-                    RequestStatus.COMPLETED -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f)
-                    RequestStatus.DECLINED -> MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(statusBg)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    SharedText(
-                        text = statusLabel,
-                        variant = SharedTextVariant.Caption,
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            SharedText(
-                text    = "${booking.date} · ${booking.time} · ${booking.neighborhood}",
-                variant = SharedTextVariant.Caption,
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SharedAvatar(
+                name = booking.customerFirstName.ifBlank { booking.customerInitials },
+                size = 44.dp,
             )
-            // Only show earnings for completed bookings
-            if (booking.earnings > 0 && booking.status == RequestStatus.COMPLETED) {
-                Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 SharedText(
-                    text    = "Earned: $${booking.earnings}",
+                    text = booking.customerFirstName.ifBlank { "Customer" },
                     variant = SharedTextVariant.BodyStrong,
                 )
-            }
-            if (booking.customerRating != null) {
-                Spacer(Modifier.height(4.dp))
-                SharedRating(rating = booking.customerRating)
+                SharedText(text = booking.serviceType, variant = SharedTextVariant.Body)
+                SharedText(
+                    text    = "${booking.date} · ${booking.time}",
+                    variant = SharedTextVariant.Caption,
+                    color   = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

@@ -3,13 +3,11 @@ package com.smartserve.providerapp.ui.app
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.smartserve.sharedui.SharedIconButton
 import com.smartserve.sharedui.SharedScreenHeader
+import com.smartserve.sharedui.SharedStackHeader
 
 /**
  * Tab/root screens: same chrome as customer app — [SharedScreenHeader] with optional trailing action.
@@ -46,21 +44,11 @@ fun ProviderStackHeader(
     modifier: Modifier = Modifier,
     backEnabled: Boolean = true,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Start,
-    ) {
-        SharedIconButton(
-            onClick = onBack,
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
-            enabled = backEnabled,
-        )
-        SharedScreenHeader(
-            title = title,
-            subtitle = subtitle,
-            modifier = Modifier.weight(1f),
-        )
-    }
+    SharedStackHeader(
+        title = title,
+        subtitle = subtitle,
+        onBack = onBack,
+        modifier = modifier,
+        backEnabled = backEnabled,
+    )
 }

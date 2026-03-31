@@ -1,9 +1,24 @@
+import java.io.File
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.dagger.hilt.android")   // ADD THIS
     id("com.google.devtools.ksp")
+}
+
+/** Merge keys from monorepo root and app module (Gradle does not auto-inject custom keys from root local.properties). */
+private fun loadImageKitProps(projectDir: File): Properties {
+    val merged = Properties()
+    listOf(
+        projectDir.resolve("../../local.properties"),
+        projectDir.resolve("local.properties"),
+    ).forEach { f ->
+        if (f.exists()) f.inputStream().use { merged.load(it) }
+    }
+    return merged
 }
 
 val hasGoogleServicesConfig =
@@ -21,6 +36,14 @@ android {
     namespace = "com.smartserve.providerapp"
     compileSdk = 36
 
+    val localProps = loadImageKitProps(rootProject.projectDir)
+    val imagekitPublicKey = localProps.getProperty("IMAGEKIT_PUBLIC_KEY")?.trim().orEmpty()
+        .ifBlank { (findProperty("IMAGEKIT_PUBLIC_KEY") as String?)?.trim().orEmpty() }
+        .ifBlank { System.getenv("IMAGEKIT_PUBLIC_KEY")?.trim().orEmpty() }
+    val imagekitPrivateKey = localProps.getProperty("IMAGEKIT_PRIVATE_KEY")?.trim().orEmpty()
+        .ifBlank { (findProperty("IMAGEKIT_PRIVATE_KEY") as String?)?.trim().orEmpty() }
+        .ifBlank { System.getenv("IMAGEKIT_PRIVATE_KEY")?.trim().orEmpty() }
+
     defaultConfig {
         applicationId = "com.smartserve.providerapp"
         minSdk = 24
@@ -29,6 +52,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // ImageKit (DO NOT hardcode secrets; use local.properties or env vars)
+        buildConfigField("String", "IMAGEKIT_PUBLIC_KEY", "\"$imagekitPublicKey\"")
+        buildConfigField("String", "IMAGEKIT_PRIVATE_KEY", "\"$imagekitPrivateKey\"")
     }
 
     buildTypes {
@@ -49,6 +76,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -76,7 +104,6 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth-ktx:23.0.0")      //ADD
     implementation("com.google.firebase:firebase-firestore-ktx:25.1.1") //ADD
-    implementation("com.google.firebase:firebase-storage")
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:21.2.0")  // ADD
 
@@ -94,8 +121,8 @@ dependencies {
     implementation("com.google.maps.android:maps-compose:4.3.3")         // ADD
     implementation("com.google.android.gms:play-services-maps:19.0.0")   // ADD
 
-    // OpenStreetMap map rendering
-    implementation("org.osmdroid:osmdroid-android:6.1.17")
+    // OpenStreetMap map rendering (same as customer app)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     // Google Play Services — GPS location
     implementation("com.google.android.gms:play-services-location:21.2.0")
@@ -103,4 +130,9 @@ dependencies {
     // Retrofit — HTTP client for OSRM API
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+
+    // OkHttp (used for ImageKit uploads)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // (No ImageKit SDK dependency; uploads use ImageKit HTTP API)
 }

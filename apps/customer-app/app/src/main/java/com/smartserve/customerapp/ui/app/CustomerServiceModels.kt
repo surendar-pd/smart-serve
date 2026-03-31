@@ -24,15 +24,25 @@ data class CustomerServiceListing(
     val availabilityDays: List<String>,
     val availabilityStart: String,
     val availabilityEnd: String,
+    /** Hosted image URLs from the provider listing (e.g. ImageKit); empty if none. */
+    val photoUrls: List<String> = emptyList(),
 )
 
 data class CustomerBooking(
     val id: String,
     val providerName: String,
+    /** Category label (service type), e.g. "Cleaning". */
+    val typeLabel: String = "",
+    /** Set by customer after completion; null by default (field may be absent in Firestore). */
+    val providerRating: Float? = null,
+    /** Set by provider; null by default (field may be absent in Firestore). */
+    val customerRating: Float? = null,
     val serviceName: String,
     val price: String,
     val date: String,
     val time: String,
     val status: String,          // "pending" | "active" | "completed" | "declined"
+    val address: String = "",
+    val scheduledAtMillis: Long = 0L,
     val createdAtMillis: Long = 0L,
 )

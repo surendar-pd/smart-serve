@@ -1,16 +1,23 @@
-package com.smartserve.providerapp.ui.app
+package com.smartserve.customerapp.ui.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,23 +29,23 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedIconButton
+import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextFieldVariant
 import java.text.SimpleDateFormat
 import java.util.Locale
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 fun ChatScreen(
     bookingId: String,
     onBack: () -> Unit,
-    bottomPadding: Dp = 0.dp,   // ← receives nav bar height from AppScreen
+    bottomPadding: Dp = 0.dp,
     topPadding: Dp = 0.dp,
 ) {
     val viewModel = remember(bookingId) {
@@ -73,21 +80,18 @@ fun ChatScreen(
                     keyboardController?.hide()
                 })
             }
-            .padding(top    = topPadding,
-            bottom = effectiveBottomPadding),  // avoid double-padding when IME is visible
+            .padding(top = topPadding, bottom = effectiveBottomPadding),
     ) {
-        // ── Top bar ───────────────────────────────────────────────────────────
-        ProviderStackHeader(
+        CustomerStackHeader(
             title = "Chat",
-            subtitle = state.customerName.ifBlank { "Customer" },
+            subtitle = state.providerName.ifBlank { "Provider" },
             onBack = onBack,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
 
-        // ── Status banner ─────────────────────────────────────────────────────
         if (!state.isChatEnabled && state.bookingStatus != null) {
             Surface(
-                color    = MaterialTheme.colorScheme.errorContainer,
+                color = MaterialTheme.colorScheme.errorContainer,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
@@ -97,16 +101,15 @@ fun ChatScreen(
                         "new"       -> "Chat will be available once booking is confirmed."
                         else        -> "Chat is not available for this booking status."
                     },
-                    style    = MaterialTheme.typography.bodySmall,
-                    color    = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
         }
 
-        // ── Message area ──────────────────────────────────────────────────────
         Box(
-            modifier         = Modifier
+            modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center,
@@ -115,20 +118,20 @@ fun ChatScreen(
                 state.isLoading -> SharedLoading()
 
                 state.messages.isEmpty() -> Text(
-                    text  = "No messages yet. Start the conversation!",
+                    text = "No messages yet. Start the conversation!",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 else -> LazyColumn(
-                    state               = listState,
-                    modifier            = Modifier.fillMaxSize(),
-                    contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(items = state.messages, key = { it.id }) { message ->
                         MessageBubble(
-                            message             = message,
+                            message = message,
                             isSentByCurrentUser = message.senderId == currentUserId,
                         )
                     }
@@ -136,7 +139,6 @@ fun ChatScreen(
             }
         }
 
-        // ── Input bar ─────────────────────────────────────────────────────────
         Surface(
             tonalElevation = 0.dp,
             modifier = Modifier
@@ -144,7 +146,7 @@ fun ChatScreen(
                 .imePadding(),
         ) {
             Row(
-                modifier          = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SharedTextField(
@@ -190,8 +192,6 @@ fun ChatScreen(
     }
 }
 
-// ── Message Bubble ────────────────────────────────────────────────────────────
-
 @Composable
 private fun MessageBubble(
     message: Message,
@@ -208,14 +208,14 @@ private fun MessageBubble(
         MaterialTheme.colorScheme.onSurfaceVariant
 
     val bubbleShape = RoundedCornerShape(
-        topStart    = 16.dp,
-        topEnd      = 16.dp,
+        topStart = 16.dp,
+        topEnd = 16.dp,
         bottomStart = if (isSentByCurrentUser) 16.dp else 4.dp,
-        bottomEnd   = if (isSentByCurrentUser) 4.dp else 16.dp,
+        bottomEnd = if (isSentByCurrentUser) 4.dp else 16.dp,
     )
 
     Column(
-        modifier            = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isSentByCurrentUser) Alignment.End else Alignment.Start,
     ) {
         Box(
@@ -227,7 +227,7 @@ private fun MessageBubble(
         ) {
             Column {
                 Text(
-                    text  = message.text,
+                    text = message.text,
                     style = MaterialTheme.typography.bodyMedium,
                     color = textColor,
                 )
@@ -237,7 +237,7 @@ private fun MessageBubble(
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text  = timeText,
+                        text = timeText,
                         style = MaterialTheme.typography.labelSmall,
                         color = textColor.copy(alpha = 0.7f),
                     )
@@ -246,3 +246,4 @@ private fun MessageBubble(
         }
     }
 }
+

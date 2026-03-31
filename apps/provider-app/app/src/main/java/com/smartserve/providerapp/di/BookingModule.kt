@@ -1,9 +1,7 @@
 package com.smartserve.providerapp.di
 
 import android.content.Context
-import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
 import com.smartserve.providerapp.ui.app.BookingRepository
 import com.smartserve.providerapp.ui.app.ProviderServicesRepository
 import dagger.Module
@@ -29,16 +27,6 @@ object BookingModule {
     @Singleton
     fun provideProviderServicesRepository(
         firestore: FirebaseFirestore,
-        storage: FirebaseStorage,
         @ApplicationContext context: Context,
-    ): ProviderServicesRepository = ProviderServicesRepository(firestore, storage, context)
-
-    @Provides
-    @Singleton
-    fun provideFirebaseStorage(): FirebaseStorage {
-        val bucket = FirebaseApp.getInstance().options.storageBucket
-        if (bucket.isNullOrBlank()) return FirebaseStorage.getInstance()
-        val uri = if (bucket.startsWith("gs://")) bucket else "gs://$bucket"
-        return FirebaseStorage.getInstance(uri)
-    }
+    ): ProviderServicesRepository = ProviderServicesRepository(firestore, context)
 }

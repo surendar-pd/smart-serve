@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -32,10 +33,13 @@ fun SharedTextField(
     supportingText: String? = null,
     isError: Boolean = false,
     singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     enabled: Boolean = true,
     readOnly: Boolean = false,
     variant: SharedTextFieldVariant = SharedTextFieldVariant.Outlined,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     /** When true, shows a password visibility toggle ([SharedIconButton]) and applies [PasswordVisualTransformation]. Ignores [trailingIcon]. */
     passwordToggleEnabled: Boolean = false,
@@ -81,9 +85,12 @@ fun SharedTextField(
             supportingText = supportingComposable,
             isError = isError,
             singleLine = singleLine,
+            minLines = minLines,
+            maxLines = maxLines,
             enabled = enabled,
             readOnly = readOnly,
             keyboardOptions = effectiveKeyboardOptions,
+            keyboardActions = keyboardActions,
             visualTransformation = effectiveVisualTransformation,
             leadingIcon = leadingIcon,
             trailingIcon = effectiveTrailingIcon,
@@ -98,9 +105,12 @@ fun SharedTextField(
             supportingText = supportingComposable,
             isError = isError,
             singleLine = singleLine,
+            minLines = minLines,
+            maxLines = maxLines,
             enabled = enabled,
             readOnly = readOnly,
             keyboardOptions = effectiveKeyboardOptions,
+            keyboardActions = keyboardActions,
             visualTransformation = effectiveVisualTransformation,
             leadingIcon = leadingIcon,
             trailingIcon = effectiveTrailingIcon,

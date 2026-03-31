@@ -29,15 +29,15 @@ data class CustomerProfile(
 )
 
 /**
- * Provider marketplace details at `provider_profiles/{uid}`.
- * Listing name, phone (until Phone Auth), service area (map + radius), ratings.
- * **Availability** (days + hours) is stored per listing on [AuthCollections.SERVICES], not here.
- * Use [FirebaseUser] for email and profile photo when linked to Auth.
+ * Provider identity and reputation at `provider_profiles/{uid}`.
  *
- * In Firestore, the category link is stored as a **reference** field `category` → [AuthCollections.CATEGORIES]
- * (written from [AuthRepository.saveProviderProfile]); not as a plain string on the document.
+ * **Listing details** (description, hourly rate, service area, availability) live only on
+ * [AuthCollections.SERVICES]; do not duplicate them on the profile document.
  *
- * [serviceCategory] is still the category document id for app/UI only; it is not written to Firestore (see `Exclude`).
+ * Onboarding may set a **reference** field `category` → [AuthCollections.CATEGORIES] so
+ * we can tell profile setup is complete before the first listing exists.
+ *
+ * [serviceCategory] is app/UI only; it is not written to Firestore (see `Exclude`).
  */
 data class ProviderServiceProfile(
     @DocumentId val uid: String = "",
@@ -51,10 +51,6 @@ data class ProviderServiceProfile(
     val createdAt: Timestamp = Timestamp.now(),
     @get:Exclude
     val serviceCategory: String = "",
-    val serviceDescription: String = "",
-    val hourlyRate: Double = 0.0,
-    val serviceCenter: com.google.firebase.firestore.GeoPoint? = null,
-    val serviceRadiusKm: Double = 10.0,
 )
 
 /** Defaults for a new `services` listing when the user has not set hours yet (e.g. onboarding). */
@@ -79,11 +75,19 @@ object AuthCollections {
     /**
      * Listings: **reference** fields `provider` → [PROVIDER_PROFILES], `category` → [CATEGORIES];
      * plus `title`, `description`, `hourlyRate`, `isActive`,
-     * `availabilityDays`, `availabilityStart`, `availabilityEnd`, `createdAt`, `updatedAt`.
-     * Phone, map center, and service radius stay on [PROVIDER_PROFILES] only.
+     * `availabilityDays`, `availabilityStart`, `availabilityEnd`,
+     * optional `serviceCenter`, `serviceRadiusKm`, `photoUrls`, `createdAt`, `updatedAt`.
      */
     const val SERVICES = "services"
     const val BOOKINGS = "bookings"
+    /**
+     * Shopping cart lines for a signed-in customer, as a subcollection:
+     * `customer_profiles/{customerUid}/cart_items/{lineId}`.
+     *
+     * Each document stores [SERVICES], [PROVIDER_PROFILES], and optionally [CATEGORIES]
+     * as **DocumentReference** fields, plus denormalized labels and scheduling fields.
+     */
+    const val CUSTOMER_CART_ITEMS = "cart_items"
 }
 
 /**

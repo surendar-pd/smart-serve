@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.TextUnit
 enum class SharedTextVariant {
     /** `headlineLarge` — hero / intro headlines */
     Headline,
+    /** `titleLarge` — screen headers (smaller than Title, bigger than Subtitle). */
+    ScreenTitle,
     Title,
     Subtitle,
     Body,
@@ -33,6 +35,7 @@ fun SharedText(
 ) {
     val baseStyle: TextStyle = when (variant) {
         SharedTextVariant.Headline -> MaterialTheme.typography.headlineLarge
+        SharedTextVariant.ScreenTitle -> MaterialTheme.typography.titleLarge
         SharedTextVariant.Title -> MaterialTheme.typography.headlineSmall
         SharedTextVariant.Subtitle -> MaterialTheme.typography.titleMedium
         SharedTextVariant.Body -> MaterialTheme.typography.bodyMedium

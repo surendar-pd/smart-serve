@@ -1,0 +1,129 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function providerProfileRef(uid) {
+      return /databases/$(database)/documents/provider_profiles/$(uid);
+    }
+
+    function customerProfileRef(uid) {
+      return /databases/$(database)/documents/customer_profiles/$(uid);
+    }
+
+    // Services: keep rules simple for this project.
+    function isServiceOwner() {
+      return request.auth != null
+        && request.resource.data.provider == providerProfileRef(request.auth.uid);
+    }
+
+    // ── Users collection ──────────────────────────────────────────────
+    // Users can read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Providers collection ──────────────────────────────────────────
+    // Providers can read/write their own document
+    // Customers can read any provider (for browsing/booking)
+    match /providers/{providerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == providerId;
+    }
+
+    // ── Customer profile document + cart (explicit paths for reliable rules) ─
+    match /customer_profiles/{customerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == customerId;
+
+      match /cart_items/{itemId} {
+        allow read, write: if request.auth != null && request.auth.uid == customerId;
+      }
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if request.auth != null
+        && (resource.data.customer == customerProfileRef(request.auth.uid)
+            || resource.data.provider == providerProfileRef(request.auth.uid));
+
+      allow create: if request.auth != null
+        && request.resource.data.customer == customerProfileRef(request.auth.uid);
+
+      allow update: if request.auth != null
+        && (resource.data.customer == customerProfileRef(request.auth.uid)
+            || resource.data.provider == providerProfileRef(request.auth.uid));
+
+      allow delete: if request.auth != null
+        && resource.data.customer == customerProfileRef(request.auth.uid)
+        && resource.data.status == "pending"
+        && request.time < (resource.data.scheduledAt - duration.value(2, 'h'));
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+          && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customer
+              == customerProfileRef(request.auth.uid)
+              || get(/databases/$(database)/documents/bookings/$(bookingId)).data.provider
+              == providerProfileRef(request.auth.uid));
+
+        allow create: if request.auth != null
+          && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customer
+              == customerProfileRef(request.auth.uid)
+              || get(/databases/$(database)/documents/bookings/$(bookingId)).data.provider
+              == providerProfileRef(request.auth.uid))
+          && (
+            get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == "pending"
+            || get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == "active"
+            || get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == "CONFIRMED"
+            || get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == "confirmed"
+          )
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.timestamp is timestamp;
+
+        allow update, delete: if false;
+      }
+    }
+
+
+    // ── Services collection (validated listing docs) ──────────────────
+    match /services/{serviceId} {
+      allow read: if request.auth != null;
+      allow create: if isServiceOwner();
+      allow update: if request.auth != null
+        && resource.data.provider == providerProfileRef(request.auth.uid)
+        && request.resource.data.provider == resource.data.provider;
+      allow delete: if request.auth != null
+        && resource.data.provider == providerProfileRef(request.auth.uid);
+    }
+
+    // ── Categories collection ─────────────────────────────────────────
+    match /categories/{categoryId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Provider profiles (SmartServe app data) ───────────────────────
+    match /provider_profiles/{providerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == providerId;
+    }
+
+    // ── Legacy / auxiliary collections (replace former catch-all) ───────
+    match /cartItems/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /bookingPatterns/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /devices/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /reviews/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

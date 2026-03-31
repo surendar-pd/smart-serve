@@ -1,4 +1,4 @@
-package com.smartserve.providerapp.ui.app
+package com.smartserve.customerapp.ui.app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,16 +13,11 @@ data class ChatUiState(
     val inputText: String = "",
     val isChatEnabled: Boolean = false,
     val bookingStatus: String? = null,
-    val customerName: String = "",
+    val providerName: String = "",
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 )
 
-/**
- * NOT a @HiltViewModel — created manually by ChatScreen with the bookingId.
- * This avoids SavedStateHandle issues since AppScreen uses a state machine,
- * not a NavHost. Matches how the screen receives bookingId as a parameter.
- */
 class ChatViewModel(
     private val bookingId: String,
     private val chatRepository: ChatRepository,
@@ -36,31 +31,29 @@ class ChatViewModel(
 
     init {
         observeBookingStatus()
-        loadCustomerName()
+        loadProviderName()
         observeMessages()
     }
 
-    private fun loadCustomerName() {
+    private fun loadProviderName() {
         viewModelScope.launch {
-            val name = runCatching { chatRepository.getCustomerName(bookingId) }
+            val name = runCatching { chatRepository.getProviderName(bookingId) }
                 .getOrNull()
                 ?.trim()
                 .orEmpty()
             if (name.isNotBlank()) {
-                _state.value = _state.value.copy(customerName = name)
+                _state.value = _state.value.copy(providerName = name)
             }
         }
     }
 
     private fun observeBookingStatus() {
-    viewModelScope.launch {
-        chatRepository.getBookingStatus(bookingId).collect { status ->
-            android.util.Log.d("ChatVM", "Booking status from Firestore: '$status'")
-            _state.value = _state.value.copy(
-                bookingStatus = status,
-                isChatEnabled = status?.lowercase() in listOf("pending", "active"),
-            )
-            android.util.Log.d("ChatVM", "isChatEnabled: ${status?.lowercase() in listOf("pending", "active")}")
+        viewModelScope.launch {
+            chatRepository.getBookingStatus(bookingId).collect { status ->
+                _state.value = _state.value.copy(
+                    bookingStatus = status,
+                    isChatEnabled = status?.lowercase() in listOf("pending", "active"),
+                )
             }
         }
     }
@@ -83,11 +76,9 @@ class ChatViewModel(
     fun sendMessage() {
         val text = _state.value.inputText.trim()
         val uid  = currentUserId
-
         if (text.isBlank() || uid == null || !_state.value.isChatEnabled) return
 
         _state.value = _state.value.copy(inputText = "")
-
         viewModelScope.launch {
             try {
                 chatRepository.sendMessage(
@@ -104,3 +95,4 @@ class ChatViewModel(
         }
     }
 }
+
