@@ -449,12 +449,22 @@ fun BookingScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // Warn if address is outside Ottawa but still allow adding
+            // Warn if address is outside Ottawa.
             if (geoResult != null && !addressValid) {
                 SharedText(
                     text    = "Note: this address is outside the Ottawa service area",
                     variant = SharedTextVariant.Caption,
                     color   = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            val isReadyToAdd = selectedDate.isNotBlank() && selectedTime.isNotBlank() && confirmedAddress.isNotBlank() && addressValid
+
+            if (!isReadyToAdd) {
+                SharedText(
+                    text    = "Select a date, time and a valid Ottawa address before adding to cart.",
+                    variant = SharedTextVariant.Caption,
+                    color   = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -469,12 +479,15 @@ fun BookingScreen(
                             serviceName  = serviceName,
                             price        = priceLabel,
                             address      = confirmedAddress,
+                            addressLat   = geoResult?.lat ?: pinLat,
+                            addressLng   = geoResult?.lon ?: pinLon,
                             date         = selectedDate,
                             time         = selectedTime,
                         )
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
+                enabled  = isReadyToAdd,
             )
             Spacer(Modifier.height(16.dp))
         }

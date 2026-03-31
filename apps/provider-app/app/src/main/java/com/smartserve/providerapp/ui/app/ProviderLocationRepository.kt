@@ -26,6 +26,11 @@ class ProviderLocationRepository @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun observeLocation(): Flow<Location> = callbackFlow {
+        // First emit the last known location if available
+        fusedClient.lastLocation.addOnSuccessListener { lastLocation ->
+            lastLocation?.let { trySend(it) }
+        }
+
         val request = LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY,
             5_000L,                           // update every 5 seconds
