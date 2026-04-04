@@ -42,6 +42,7 @@ import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextVariant
 import com.smartserve.sharedui.SharedTimePickerDialog
+import com.smartserve.sharedui.SharedSwitchRow
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -87,6 +88,7 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit,
     onOpenServices: () -> Unit = {},
+    onOpenPrivacyData: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel(),
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
@@ -144,12 +146,12 @@ fun ProfileScreen(
             SharedListItem(
                 title = "Notification Settings",
                 leadingIcon = Icons.Filled.Notifications,
-                onClick = { /* TODO */ },
+                onClick = viewModel::openNotificationSheet,
             )
             SharedListItem(
                 title = "Privacy & Data",
                 leadingIcon = Icons.Filled.PrivacyTip,
-                onClick = { /* TODO */ },
+                onClick = onOpenPrivacyData,
             )
 
             Spacer(Modifier.height(28.dp))
@@ -167,6 +169,60 @@ fun ProfileScreen(
             }
         }
     }
+
+    SharedBottomSheet(
+        isOpen = state.notificationSheetOpen,
+        onOpenChange = { if (!it) viewModel.closeNotificationSheet() },
+        skipPartiallyExpanded = true,
+        sheetContent = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SharedText(text = "Notification Settings", variant = SharedTextVariant.BodyStrong)
+
+                SharedSwitchRow(
+                    checked = state.pushNotifications,
+                    onCheckedChange = viewModel::onPushNotificationsChange,
+                    title = "Push Notifications",
+                    description = "Master switch for provider notifications",
+                )
+
+                SharedSwitchRow(
+                    checked = state.requestNotifications,
+                    onCheckedChange = viewModel::onRequestNotificationsChange,
+                    title = "New Request Alerts",
+                    description = "Notify when customers send new requests",
+                )
+
+                SharedSwitchRow(
+                    checked = state.serviceReminderNotifications,
+                    onCheckedChange = viewModel::onServiceReminderNotificationsChange,
+                    title = "Service Day Reminders",
+                    description = "Notify on the day of active services",
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SharedButton(
+                        text = "Cancel",
+                        onClick = viewModel::closeNotificationSheet,
+                        modifier = Modifier.weight(1f),
+                        variant = SharedButtonVariant.Ghost,
+                    )
+                    SharedButton(
+                        text = "Save",
+                        onClick = viewModel::saveNotificationSettings,
+                        modifier = Modifier.weight(1f),
+                        loading = state.isSaving,
+                        enabled = !state.isSaving,
+                    )
+                }
+            }
+        },
+        content = { },
+    )
 
     SharedBottomSheet(
         isOpen = state.areaSheetOpen,

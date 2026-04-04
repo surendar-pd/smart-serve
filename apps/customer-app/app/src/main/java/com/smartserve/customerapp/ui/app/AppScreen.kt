@@ -21,10 +21,18 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.customerapp.ui.layouts.AppLayout
 import com.smartserve.customerapp.ui.layouts.AppTab
 
+private data class RatingThankYouPayload(
+    val serviceName: String,
+    val providerName: String,
+    val rating: Float,
+)
+
 @Composable
 fun AppScreen(
     onLogout: () -> Unit,
 ) {
+    hiltViewModel<CustomerNotificationsViewModel>()
+
     val activity = LocalContext.current as ComponentActivity
     val cartViewModel: CartViewModel = hiltViewModel(activity)
     val cartItems by cartViewModel.cartItems.collectAsState()
@@ -38,6 +46,7 @@ fun AppScreen(
     var selectedProviderName  by remember { mutableStateOf("") }
     var selectedService       by remember { mutableStateOf<CustomerServiceListing?>(null) }
     var showProfile           by remember { mutableStateOf(false) }
+    var showPrivacyData       by remember { mutableStateOf(false) }
 
     // ── Search tab navigation stack ──────────────────────────────────────────
     var searchProviderUid    by remember { mutableStateOf("") }
@@ -47,6 +56,7 @@ fun AppScreen(
     // ── Bookings tab navigation stack ────────────────────────────────────────
     var selectedBooking by remember { mutableStateOf<CustomerBooking?>(null) }
     var chatBookingId by remember { mutableStateOf<String?>(null) }
+    var thankYouPayload by remember { mutableStateOf<RatingThankYouPayload?>(null) }
 
     val tabs = listOf(
         AppTab(title = "Home",     icon = Icons.Filled.Home),
@@ -62,6 +72,7 @@ fun AppScreen(
         selectedCategoryId    = ""
         selectedCategoryLabel = ""
         showProfile           = false
+        showPrivacyData       = false
     }
 
     fun clearSearchStack() {
@@ -119,6 +130,14 @@ fun AppScreen(
                         modifier  = Modifier.fillMaxSize().padding(innerPadding),
                         onBack    = { showProfile = false },
                         onLogout  = onLogout,
+                        onOpenPrivacyData = {
+                            showProfile = false
+                            showPrivacyData = true
+                        },
+                    )
+                    showPrivacyData -> PrivacyDataScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { showPrivacyData = false },
                     )
                     else -> HomeScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -174,6 +193,16 @@ fun AppScreen(
 
                 // ── Bookings ─────────────────────────────────────────────────
                 3 -> when {
+                    thankYouPayload != null -> RatingThankYouScreen(
+                        serviceName = thankYouPayload!!.serviceName,
+                        providerName = thankYouPayload!!.providerName,
+                        rating = thankYouPayload!!.rating,
+                        onDone = {
+                            thankYouPayload = null
+                            selectedBooking = null
+                        },
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    )
                     chatBookingId != null -> ChatScreen(
                         bookingId = chatBookingId!!,
                         onBack = { chatBookingId = null },
@@ -184,6 +213,13 @@ fun AppScreen(
                         booking = selectedBooking!!,
                         onBack = { selectedBooking = null },
                         onOpenChat = { id -> chatBookingId = id },
+                        onRatingSubmitted = { booking, rating ->
+                            thankYouPayload = RatingThankYouPayload(
+                                serviceName = booking.serviceName,
+                                providerName = booking.providerName,
+                                rating = rating,
+                            )
+                        },
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                     )
                     else -> BookingsScreen(

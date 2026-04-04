@@ -72,6 +72,7 @@ fun RequestDetailScreen(
         viewModel.events.collect { event ->
             when (event) {
                 RequestDetailEvent.NavigateBack        -> onBack()
+                is RequestDetailEvent.NavigateToActiveJob -> onNavigateToActiveJob(event.bookingId)
             }
         }
     }
@@ -162,14 +163,24 @@ fun RequestDetailScreen(
                                     .verticalScroll(rememberScrollState())
                                     .padding(16.dp),
                             ) {
-                        CustomerLocationMap(
-                            lat = req.location?.latitude ?: req.customerLat,
-                            lon = req.location?.longitude ?: req.customerLng,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                        )
+                        val hideLocation = req.status == RequestStatus.COMPLETED
+
+                        if (!hideLocation) {
+                            CustomerLocationMap(
+                                lat = req.location?.latitude ?: req.customerLat,
+                                lon = req.location?.longitude ?: req.customerLng,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                            )
+                        } else {
+                            SharedText(
+                                text = "Customer location is hidden after completion for security.",
+                                variant = SharedTextVariant.Caption,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
 
                         Spacer(Modifier.height(16.dp))
                         DetailRow(label = "Type", value = req.categoryLabel.ifBlank { req.categoryId })
@@ -177,7 +188,9 @@ fun RequestDetailScreen(
                         DetailRow(label = "Customer", value = req.customerFirstName)
                         DetailRow(label = "Date",     value = req.date)
                         DetailRow(label = "Time",     value = req.time)
-                        DetailRow(label = "Area",     value = req.neighborhood)
+                        if (!hideLocation) {
+                            DetailRow(label = "Area", value = req.neighborhood)
+                        }
                         if (req.status == RequestStatus.COMPLETED && req.customerRating != null) {
                             Spacer(Modifier.height(6.dp))
                             SharedText(

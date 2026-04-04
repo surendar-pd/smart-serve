@@ -49,6 +49,7 @@ import com.smartserve.sharedui.SharedBottomSheet
 import com.smartserve.sharedui.SharedLoading
 import com.smartserve.sharedui.SharedScaffold
 import com.smartserve.sharedui.SharedText
+import com.smartserve.sharedui.SharedTextArea
 import com.smartserve.sharedui.SharedTextVariant
 import com.smartserve.sharedui.SharedTopAppBar
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -62,6 +63,26 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private const val ROUTE_WINDOW_MS = 3L * 60L * 60L * 1000L
+
+private fun routeWindowLabel(scheduledAt: Date?): String {
+    if (scheduledAt == null) return ""
+    val formatter = SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault())
+    val unlockAt = Date(scheduledAt.time - ROUTE_WINDOW_MS)
+    return "Directions unlock at ${formatter.format(unlockAt)} (3 hours before meeting)."
+}
+
+private fun isRouteEnabledForMeeting(scheduledAt: Date?): Boolean {
+    if (scheduledAt == null) return true
+    val now = System.currentTimeMillis()
+    val start = scheduledAt.time - ROUTE_WINDOW_MS
+    val end = scheduledAt.time
+    return now in start..end
+}
 
 @Composable
 fun ActiveJobScreen(
@@ -130,6 +151,8 @@ fun ActiveJobScreen(
                     .ifBlank { req.neighborhood }
                     .ifBlank { req.customerFirstName }
                 val isComplete = req.status == RequestStatus.COMPLETED
+                val routeEnabled = isRouteEnabledForMeeting(req.scheduledAt?.toDate())
+                val routeHintText = routeWindowLabel(req.scheduledAt?.toDate())
                 var showCompleteSheet by remember { mutableStateOf(false) }
 
                 SharedBottomSheet(
@@ -224,121 +247,156 @@ fun ActiveJobScreen(
                                 text    = "${req.date} · ${req.time}",
                                 variant = SharedTextVariant.Caption,
                             )
-                            SharedText(
-                                text    = "Destination: ${mapAddress.ifBlank { "N/A" }}",
-                                variant = SharedTextVariant.Caption,
-                            )
+                            if (!isComplete) {
+                                SharedText(
+                                    text    = "Destination: ${mapAddress.ifBlank { "N/A" }}",
+                                    variant = SharedTextVariant.Caption,
+                                )
+                            }
                         }
+                    }
+
+                    if (req.specialInstructions.isNotBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        SharedText(text = "Special Instructions", variant = SharedTextVariant.Subtitle)
+                        Spacer(Modifier.height(4.dp))
+                        SharedTextArea(
+                            value = req.specialInstructions,
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
 
                     Spacer(Modifier.height(16.dp))
 
-                    // ── Route preview map ─────────────────────────────────────
-                    val customerGeoPoint = remember(req.customerLat, req.customerLng) {
-                        if (req.customerLat != 0.0 && req.customerLng != 0.0) {
-                            GeoPoint(req.customerLat, req.customerLng)
-                        } else {
-                            GeoPoint(45.4215, -75.6972) // Ottawa fallback
-                        }
-                    }
-
-                    val mapView = remember {
-                        MapView(context).apply {
-                            setTileSource(TileSourceFactory.MAPNIK)
-                            setMultiTouchControls(false) // Disable zoom/pan for preview
-                            setUseDataConnection(true)
-                            controller.setZoom(15.0)
-                            controller.setCenter(customerGeoPoint)
-                        }
-                    }
-
-                    // ── MapView lifecycle — required for tiles to load ────────────────────────
-                    val lifecycleOwner = LocalLifecycleOwner.current
-                    DisposableEffect(lifecycleOwner) {
-                        val observer = LifecycleEventObserver { _, event ->
-                            when (event) {
-                                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                                Lifecycle.Event.ON_PAUSE  -> mapView.onPause()
-                                else -> {}
+                    if (!isComplete) {
+                        // ── Route preview map ─────────────────────────────────────
+                        val customerGeoPoint = remember(req.customerLat, req.customerLng) {
+                            if (req.customerLat != 0.0 && req.customerLng != 0.0) {
+                                GeoPoint(req.customerLat, req.customerLng)
+                            } else {
+                                GeoPoint(45.4215, -75.6972) // Ottawa fallback
                             }
                         }
-                        lifecycleOwner.lifecycle.addObserver(observer)
-                        onDispose {
-                            lifecycleOwner.lifecycle.removeObserver(observer)
-                            mapView.onDetach()
+
+                        val mapView = remember {
+                            MapView(context).apply {
+                                setTileSource(TileSourceFactory.MAPNIK)
+                                setMultiTouchControls(false) // Disable zoom/pan for preview
+                                setUseDataConnection(true)
+                                controller.setZoom(15.0)
+                                controller.setCenter(customerGeoPoint)
+                            }
                         }
-                    }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                    ) {
-                        AndroidView(
-                            factory = { mapView },
-                            modifier = Modifier.fillMaxSize(),
-                            update = { map ->
-                                map.overlays.clear()
-
-                                // Customer marker
-                                map.overlays.add(Marker(map).apply {
-                                    position = customerGeoPoint
-                                    title = mapAddress.ifBlank { "Customer Location" }
-                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                })
-
-                                map.invalidate()
-                            },
-                        )
-
-                        // Transparent overlay to capture taps above the MapView
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable {
-                                    if (isComplete) {
-                                        snackbarScope.launch {
-                                            snackbarHostState.showSnackbar("Job completed: navigation disabled")
-                                        }
-                                        return@clickable
-                                    }
-
-                                    val destinationLabel = mapAddress.ifBlank { "Customer" }
-                                    if (req.customerLat != 0.0 && req.customerLng != 0.0) {
-                                        onNavigateToMap(
-                                            req.customerLat,
-                                            req.customerLng,
-                                            destinationLabel,
-                                        )
-                                    } else if (mapAddress.isNotBlank()) {
-                                        // Use in-app OSM map screen; ViewModel handles address geocoding when coordinates are not available.
-                                        onNavigateToMap(0.0, 0.0, mapAddress)
-                                    } else {
-                                        snackbarScope.launch {
-                                            snackbarHostState.showSnackbar("No destination available")
-                                        }
-                                    }
+                        // ── MapView lifecycle — required for tiles to load ────────────────────────
+                        val lifecycleOwner = LocalLifecycleOwner.current
+                        DisposableEffect(lifecycleOwner) {
+                            val observer = LifecycleEventObserver { _, event ->
+                                when (event) {
+                                    Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                                    Lifecycle.Event.ON_PAUSE  -> mapView.onPause()
+                                    else -> {}
                                 }
-                        )
+                            }
+                            lifecycleOwner.lifecycle.addObserver(observer)
+                            onDispose {
+                                lifecycleOwner.lifecycle.removeObserver(observer)
+                                mapView.onDetach()
+                            }
+                        }
 
-                        // Overlay text (keeps user hint visible)
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(8.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp)),
                         ) {
+                            AndroidView(
+                                factory = { mapView },
+                                modifier = Modifier.fillMaxSize(),
+                                update = { map ->
+                                    map.overlays.clear()
+
+                                    // Customer marker
+                                    map.overlays.add(Marker(map).apply {
+                                        position = customerGeoPoint
+                                        title = mapAddress.ifBlank { "Customer Location" }
+                                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                    })
+
+                                    map.invalidate()
+                                },
+                            )
+
+                            // Transparent overlay to capture taps above the MapView
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable {
+                                        if (!routeEnabled) {
+                                            snackbarScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    routeHintText.ifBlank {
+                                                        "Directions are available only within 3 hours before meeting time"
+                                                    }
+                                                )
+                                            }
+                                            return@clickable
+                                        }
+
+                                        val destinationLabel = mapAddress.ifBlank { "Customer" }
+                                        if (req.customerLat != 0.0 && req.customerLng != 0.0) {
+                                            onNavigateToMap(
+                                                req.customerLat,
+                                                req.customerLng,
+                                                destinationLabel,
+                                            )
+                                        } else if (mapAddress.isNotBlank()) {
+                                            // Use in-app OSM map screen; ViewModel handles address geocoding when coordinates are not available.
+                                            onNavigateToMap(0.0, 0.0, mapAddress)
+                                        } else {
+                                            snackbarScope.launch {
+                                                snackbarHostState.showSnackbar("No destination available")
+                                            }
+                                        }
+                                    }
+                            )
+
+                            // Overlay text (keeps user hint visible)
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(8.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            ) {
+                                SharedText(
+                                    text = if (routeEnabled) "Tap to navigate" else "Directions locked",
+                                    variant = SharedTextVariant.Caption,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
+                        }
+
+                        if (!routeEnabled && routeHintText.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
                             SharedText(
-                                text = "Tap to navigate",
+                                text = routeHintText,
                                 variant = SharedTextVariant.Caption,
-                                modifier = Modifier.align(Alignment.Center)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                    } else {
+                        SharedText(
+                            text = "Customer location is hidden after completion for security.",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
 
                     Spacer(Modifier.height(20.dp))

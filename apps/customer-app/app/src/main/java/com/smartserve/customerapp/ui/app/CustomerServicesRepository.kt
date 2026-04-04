@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -407,9 +408,13 @@ class CustomerServicesRepository @Inject constructor(
             "address" to item.address,
             "location" to GeoPoint(item.lat, item.lon),
             "hourlyRate" to item.hourlyRate,
+            "specialInstructions" to item.specialInstructions,
             "status" to "pending",
             "createdAt" to Timestamp.now(),
         )
+        if (item.timeRange.isNotBlank()) {
+            m["timeRange"] = item.timeRange
+        }
         if (item.categoryId.isNotBlank()) {
             m["category"] = categories.document(item.categoryId)
         }
@@ -435,6 +440,8 @@ class CustomerServicesRepository @Inject constructor(
             "location" to GeoPoint(item.lat, item.lon),
             "scheduledDate" to item.date,
             "scheduledTime" to item.time,
+            "timeRange" to item.timeRange,
+            "specialInstructions" to item.specialInstructions,
             "addedAt" to Timestamp.now(),
         )
         if (item.categoryId.isNotBlank()) {
@@ -449,6 +456,96 @@ class CustomerServicesRepository @Inject constructor(
         return runCatching {
             val customerRef = customerProfiles.document(uid)
             val docs = bookings.whereEqualTo("customer", customerRef).get().await().documents
+            mapBookingDocuments(docs)
+                .sortedByDescending { it.createdAtMillis }
+        }.getOrDefault(emptyList())
+    }
+
+    /** Real-time stream of bookings for the signed-in customer, newest first. */
+    fun observeMyBookings(): Flow<List<CustomerBooking>> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val customerRef = customerProfiles.document(uid)
+        val sub = bookings.whereEqualTo("customer", customerRef)
+            .addSnapshotListener { snap, err ->
+                if (err != null || snap == null) {
+                    Log.e(TAG, "observeMyBookings listener error", err)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                launch {
+                    val mapped = mapBookingDocuments(snap.documents)
+                        .sortedByDescending { it.createdAtMillis }
+                    trySend(mapped)
+                }
+            }
+
+        awaitClose { sub.remove() }
+    }.distinctUntilChanged()
+
+    /**
+     * Real-time booked slot starts for a provider+service+date.
+     * Blocks starts that are currently pending/active.
+     */
+    fun observeBookedSlotStarts(
+        providerUid: String,
+        serviceId: String,
+        dateLabel: String,
+    ): Flow<Set<String>> = callbackFlow {
+        if (providerUid.isBlank() || serviceId.isBlank() || dateLabel.isBlank()) {
+            trySend(emptySet())
+            close()
+            return@callbackFlow
+        }
+
+        val providerRef = profiles.document(providerUid)
+        val allowedStatuses = setOf("pending", "active")
+        val dateFormatter = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
+
+        val sub = bookings.whereEqualTo("provider", providerRef)
+            .addSnapshotListener { snap, err ->
+                if (err != null || snap == null) {
+                    Log.e(TAG, "observeBookedSlotStarts listener error", err)
+                    trySend(emptySet())
+                    return@addSnapshotListener
+                }
+
+                val blockedStarts = snap.documents.mapNotNull { doc ->
+                    val status = doc.getString("status")?.lowercase()?.trim().orEmpty()
+                    if (status !in allowedStatuses) return@mapNotNull null
+
+                    val docServiceId = doc.getDocumentReference("service")?.id.orEmpty()
+                    if (docServiceId != serviceId) return@mapNotNull null
+
+                    val docDate = doc.getTimestamp("bookingDate")?.let { ts ->
+                        dateFormatter.format(ts.toDate())
+                    }.orEmpty()
+                    if (docDate != dateLabel) return@mapNotNull null
+
+                    doc.getString("timeSlot")
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?: doc.getString("timeRange")
+                            ?.substringBefore("-")
+                            ?.trim()
+                            ?.takeIf { it.isNotBlank() }
+                }.toSet()
+
+                trySend(blockedStarts)
+            }
+
+        awaitClose { sub.remove() }
+    }.distinctUntilChanged()
+
+    private suspend fun mapBookingDocuments(
+        docs: List<com.google.firebase.firestore.DocumentSnapshot>,
+    ): List<CustomerBooking> {
             val providerNameCache = mutableMapOf<String, String>()
             val serviceNameCache = mutableMapOf<String, String>()
             val categoryLabelCache = mutableMapOf<String, String>()
@@ -478,13 +575,16 @@ class CustomerServicesRepository @Inject constructor(
                 }
             }
 
-            docs.map { doc ->
+        return docs.map { doc ->
                 val dateStr = doc.getTimestamp("bookingDate")?.let { ts ->
                     SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()).format(ts.toDate())
                 }.orEmpty()
-                val timeStr = doc.getString("timeSlot").orEmpty()
+                val timeStr = doc.getString("timeRange")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: doc.getString("timeSlot").orEmpty()
                 val scheduledAtMillis = doc.getTimestamp("scheduledAt")?.toDate()?.time
-                    ?: computeScheduledAt(doc.getTimestamp("bookingDate"), timeStr)?.toDate()?.time
+                    ?: computeScheduledAt(doc.getTimestamp("bookingDate"), doc.getString("timeSlot").orEmpty())?.toDate()?.time
                     ?: 0L
                 val priceStr = doc.getDouble("hourlyRate")?.let { "$${it.toInt()}/hr" }
                     ?: doc.getLong("hourlyRate")?.toDouble()?.let { "$${it.toInt()}/hr" }
@@ -507,9 +607,7 @@ class CustomerServicesRepository @Inject constructor(
                     createdAtMillis = doc.getTimestamp("createdAt")
                         ?.toDate()?.time ?: 0L,
                 )
-            }
-                .sortedByDescending { it.createdAtMillis }
-        }.getOrDefault(emptyList())
+                }
     }
 
     private fun computeScheduledAt(date: Timestamp?, timeSlot: String): Timestamp? {
@@ -575,6 +673,8 @@ private fun com.google.firebase.firestore.DocumentSnapshot.toCartLine(): CartIte
         address = getString("address") ?: "",
         date = getString("scheduledDate") ?: "",
         time = getString("scheduledTime") ?: "",
+        timeRange = getString("timeRange") ?: "",
+        specialInstructions = getString("specialInstructions") ?: "",
         addedAtMillis = getTimestamp("addedAt")?.toDate()?.time ?: 0L,
     )
 }

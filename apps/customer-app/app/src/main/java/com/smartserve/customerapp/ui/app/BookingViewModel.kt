@@ -3,10 +3,12 @@ package com.smartserve.customerapp.ui.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -100,5 +102,14 @@ class BookingViewModel @Inject constructor(
 
     fun clearGeoResult() {
         _geoResult.value = null
+    }
+
+    fun observeBookedSlotStarts(
+        providerUid: String,
+        serviceId: String,
+        dateLabel: String,
+    ): Flow<Set<String>> {
+        if (dateLabel.isBlank()) return flowOf(emptySet())
+        return repo.observeBookedSlotStarts(providerUid, serviceId, dateLabel)
     }
 }

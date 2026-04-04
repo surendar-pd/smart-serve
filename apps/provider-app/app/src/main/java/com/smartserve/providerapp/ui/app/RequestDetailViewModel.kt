@@ -26,6 +26,7 @@ data class RequestDetailUiState(
 
 sealed interface RequestDetailEvent {
     object NavigateBack : RequestDetailEvent
+    data class NavigateToActiveJob(val bookingId: String) : RequestDetailEvent
 }
 
 // ── Change 1: AssistedInject instead of @HiltViewModel ────────────────────────
@@ -70,7 +71,10 @@ class RequestDetailViewModel @AssistedInject constructor(
     fun accept() = viewModelScope.launch {
         _uiState.update { it.copy(isActing = true) }
         runCatching { repository.acceptRequest(bookingId) }
-            .onSuccess { _uiState.update { it.copy(isActing = false, errorMessage = null) } }
+            .onSuccess {
+                _uiState.update { it.copy(isActing = false, errorMessage = null) }
+                _events.send(RequestDetailEvent.NavigateToActiveJob(bookingId))
+            }
             .onFailure { e ->
                 _uiState.update { it.copy(isActing = false, errorMessage = e.localizedMessage) }
             }
