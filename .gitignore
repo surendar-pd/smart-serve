@@ -34,6 +34,7 @@ node_modules
 # Android (Gradle / Android Studio)
 **/local.properties
 **/.gradle/
+**/.kotlin/
 **/build/
 **/captures/
 .externalNativeBuild

@@ -43,6 +43,7 @@ fun BookingDetailScreen(
     booking: CustomerBooking,
     onBack: () -> Unit,
     onOpenChat: (bookingId: String) -> Unit,
+    onRatingSubmitted: (booking: CustomerBooking, rating: Float) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BookingDetailViewModel = hiltViewModel(),
 ) {
@@ -96,7 +97,10 @@ fun BookingDetailScreen(
                     text = if (isRating) "Submitting…" else "Submit rating",
                     onClick = {
                         viewModel.clearError()
-                        viewModel.rateProvider(booking.id, rating) { showRateSheet = false }
+                        viewModel.rateProvider(booking.id, rating) {
+                            showRateSheet = false
+                            onRatingSubmitted(booking, rating)
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = rating > 0f && !isRating,

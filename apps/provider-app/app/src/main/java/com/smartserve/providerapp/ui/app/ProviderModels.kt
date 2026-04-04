@@ -43,6 +43,7 @@ data class ServiceRequest(
     val status: RequestStatus,
     val customerRating: Float?,
     val earnings: Int,
+    val scheduledAt: Timestamp?,
     val createdAt: Timestamp?,
     val completedAt: Timestamp?,
     val callLoggedAt: Timestamp?,
@@ -97,7 +98,10 @@ fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
         customerInitials    = initials,
         serviceType         = "",
         date                = dateString,
-        time                = getString("timeSlot") ?: "",
+        time                = getString("timeRange")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: (getString("timeSlot") ?: ""),
         neighborhood        = getString("address") ?: "",
         homeAddress         = getString("address") ?: "",
         specialInstructions = getString("specialInstructions") ?: "",
@@ -105,6 +109,7 @@ fun DocumentSnapshot.toServiceRequest(): ServiceRequest? = runCatching {
         status              = RequestStatus.from(normalizedStatus),
         customerRating      = getDouble("customerRating")?.toFloat(),
         earnings            = parsedEarnings,
+        scheduledAt         = getTimestamp("scheduledAt") ?: getTimestamp("bookingDate"),
         createdAt           = getTimestamp("createdAt"),
         completedAt         = getTimestamp("completedAt"),
         callLoggedAt        = getTimestamp("callLoggedAt"),

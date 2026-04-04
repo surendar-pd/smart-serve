@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.smartserve.providerapp.ui.layouts.AppLayout
 import com.smartserve.providerapp.ui.layouts.AppTab
 
@@ -32,11 +33,14 @@ private sealed interface HomeStack {
 private sealed interface ProfileStack {
     object Main : ProfileStack
     object ServicesList : ProfileStack
+    object PrivacyData : ProfileStack
     data class ServiceEditor(val serviceId: String?, val sessionKey: Long) : ProfileStack
 }
 
 @Composable
 fun AppScreen(onLogout: () -> Unit) {
+    hiltViewModel<ProviderNotificationsViewModel>()
+
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var homeStack by remember { mutableStateOf<HomeStack>(HomeStack.Home) }
     var profileStack by remember { mutableStateOf<ProfileStack>(ProfileStack.Main) }
@@ -127,6 +131,7 @@ fun AppScreen(onLogout: () -> Unit) {
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         onLogout = onLogout,
                         onOpenServices = { profileStack = ProfileStack.ServicesList },
+                        onOpenPrivacyData = { profileStack = ProfileStack.PrivacyData },
                     )
                     is ProfileStack.ServicesList -> MyServicesScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -150,6 +155,10 @@ fun AppScreen(onLogout: () -> Unit) {
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         onBack = { profileStack = ProfileStack.ServicesList },
                         onFinished = { profileStack = ProfileStack.ServicesList },
+                    )
+                    is ProfileStack.PrivacyData -> PrivacyDataScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { profileStack = ProfileStack.Main },
                     )
                 }
             }

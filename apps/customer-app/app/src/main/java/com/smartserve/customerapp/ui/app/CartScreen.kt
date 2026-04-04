@@ -96,6 +96,14 @@ fun CartScreen(
                                         color = MaterialTheme.colorScheme.primary,
                                     )
                                 }
+                                if (item.specialInstructions.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    SharedText(
+                                        text = "Instructions: ${item.specialInstructions}",
+                                        variant = SharedTextVariant.Caption,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                             SharedIconButton(
                                 onClick = { onRemoveItem(item) },

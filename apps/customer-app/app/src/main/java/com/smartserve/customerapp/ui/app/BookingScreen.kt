@@ -30,9 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -94,6 +92,62 @@ private fun formatTime(hour: Int, minute: Int): String {
     val period = if (hour < 12) "AM" else "PM"
     val h = when { hour == 0 -> 12; hour <= 12 -> hour; else -> hour - 12 }
     return "$h:${minute.toString().padStart(2, '0')} $period"
+}
+
+private fun formatSelectedDateFromUtcMillis(utcMillis: Long): String {
+    val formatter = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
+    return formatter.format(Date(utcMillis))
+}
+
+private fun parseAvailabilityTimeToMinutes(raw: String, fallbackHour24: Int): Int {
+    val text = raw.trim()
+    if (text.isBlank()) return fallbackHour24 * 60
+
+    val patterns = listOf("h:mm a", "hh:mm a", "H:mm", "HH:mm")
+    for (pattern in patterns) {
+        val parsed = runCatching {
+            val sdf = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+            sdf.parse(text)
+        }.getOrNull() ?: continue
+
+        val cal = Calendar.getInstance().apply { time = parsed }
+        return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    }
+
+    return fallbackHour24 * 60
+}
+
+private data class HourlySlot(
+    val startMinutes: Int,
+    val endMinutes: Int,
+    val startLabel: String,
+    val rangeLabel: String,
+)
+
+private fun buildHourlySlots(startMinutes: Int, endMinutes: Int): List<HourlySlot> {
+    if (endMinutes <= startMinutes) return emptyList()
+    val slots = mutableListOf<HourlySlot>()
+    var cursor = startMinutes
+    while (cursor + 60 <= endMinutes) {
+        val startHour = cursor / 60
+        val startMinute = cursor % 60
+        val end = cursor + 60
+        val endHour = end / 60
+        val endMinute = end % 60
+        val startLabel = formatTime(startHour, startMinute)
+        slots.add(
+            HourlySlot(
+                startMinutes = cursor,
+                endMinutes = end,
+                startLabel = startLabel,
+                rangeLabel = "$startLabel - ${formatTime(endHour, endMinute)}",
+            )
+        )
+        cursor += 60
+    }
+    return slots
 }
 
 // ── OSM address picker composable ─────────────────────────────────────────────
@@ -191,12 +245,18 @@ fun BookingScreen(
     val serviceName  = service.title
     val priceLabel   = "$${service.hourlyRate.toInt()}/hr"
     val availDays    = service.availabilityDays
-    val startHour    = service.availabilityStart.substringBefore(":").toIntOrNull() ?: 9
-    val endHour      = service.availabilityEnd.substringBefore(":").toIntOrNull()   ?: 17
-    val windowLabel  = "${formatTime(startHour, 0)} – ${formatTime(endHour, 0)}"
+    val startMinutes = parseAvailabilityTimeToMinutes(service.availabilityStart, fallbackHour24 = 9)
+    val endMinutes   = parseAvailabilityTimeToMinutes(service.availabilityEnd, fallbackHour24 = 17)
+    val startHour    = startMinutes / 60
+    val startMinute  = startMinutes % 60
+    val endHour      = endMinutes / 60
+    val endMinute    = endMinutes % 60
+    val hasValidWindow = endMinutes > startMinutes
+    val windowLabel  = "${formatTime(startHour, startMinute)} – ${formatTime(endHour, endMinute)}"
 
     var selectedDate    by remember { mutableStateOf("") }
-    var selectedTime    by remember { mutableStateOf("") }
+    var selectedTimeStart by remember { mutableStateOf("") }
+    var selectedTimeRange by remember { mutableStateOf("") }
     var timeError       by remember { mutableStateOf("") }
     var addressQuery    by remember { mutableStateOf("") }
     var notes           by remember { mutableStateOf("") }
@@ -222,6 +282,10 @@ fun BookingScreen(
     // Derived: confirmed address to write to CartItem
     val confirmedAddress = geoResult?.fullAddress ?: addressQuery
     val addressValid     = geoResult?.isInOttawa ?: false   // null = not yet resolved
+    val hourlySlots = remember(startMinutes, endMinutes) { buildHourlySlots(startMinutes, endMinutes) }
+    val bookedStarts by remember(selectedDate, service.providerUid, service.serviceId) {
+        viewModel.observeBookedSlotStarts(service.providerUid, service.serviceId, selectedDate)
+    }.collectAsState(initial = emptySet())
 
     // ── Date picker ──────────────────────────────────────────────────────────
     if (showDatePicker) {
@@ -245,8 +309,10 @@ fun BookingScreen(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
-                            .format(Date(millis))
+                        selectedDate = formatSelectedDateFromUtcMillis(millis)
+                        selectedTimeStart = ""
+                        selectedTimeRange = ""
+                        timeError = ""
                     }
                     showDatePicker = false
                 }) { Text("OK") }
@@ -261,34 +327,57 @@ fun BookingScreen(
 
     // ── Time picker ───────────────────────────────────────────────────────────
     if (showTimePicker) {
-        val timePickerState = rememberTimePickerState(
-            initialHour = startHour, initialMinute = 0, is24Hour = false,
-        )
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
-            title = { Text("Select Time") },
+            title = { Text("Select Time Slot") },
             text = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TimePicker(state = timePickerState)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text  = "Available: $windowLabel",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+
+                    if (selectedDate.isBlank()) {
+                        SharedText(
+                            text = "Choose a date first.",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else if (hourlySlots.isEmpty()) {
+                        SharedText(
+                            text = "No hourly slots available for this service window.",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else {
+                        hourlySlots.chunked(2).forEach { rowSlots ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                rowSlots.forEach { slot ->
+                                    val booked = slot.startLabel in bookedStarts
+                                    val selected = selectedTimeStart == slot.startLabel
+                                    SharedButton(
+                                        text = if (booked) "${slot.rangeLabel} (Booked)" else slot.rangeLabel,
+                                        onClick = {
+                                            selectedTimeStart = slot.startLabel
+                                            selectedTimeRange = slot.rangeLabel
+                                            timeError = ""
+                                            showTimePicker = false
+                                        },
+                                        enabled = !booked,
+                                        modifier = Modifier.weight(1f),
+                                        variant = if (selected) SharedButtonVariant.Secondary else SharedButtonVariant.Outline,
+                                    )
+                                }
+                                if (rowSlots.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    val h = timePickerState.hour
-                    if (h in startHour until endHour) {
-                        selectedTime = formatTime(h, timePickerState.minute)
-                        timeError    = ""
-                        showTimePicker = false
-                    } else {
-                        timeError = "Please choose a time between $windowLabel"
-                    }
-                }) { Text("OK") }
-            },
+            confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
             },
@@ -359,8 +448,15 @@ fun BookingScreen(
                 color   = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             SharedButton(
-                text        = if (selectedTime.isEmpty()) "Choose a time" else selectedTime,
-                onClick     = { showTimePicker = true; timeError = "" },
+                text        = if (selectedTimeRange.isEmpty()) "Choose a time" else selectedTimeRange,
+                onClick     = {
+                    if (selectedDate.isBlank()) {
+                        timeError = "Please choose a date first"
+                    } else {
+                        showTimePicker = true
+                        timeError = ""
+                    }
+                },
                 leadingIcon = Icons.Filled.DateRange,
                 modifier    = Modifier.fillMaxWidth(),
                 variant     = SharedButtonVariant.Outline,
@@ -488,7 +584,7 @@ fun BookingScreen(
                 )
             }
 
-            val canAddToCart = selectedDate.isNotBlank() && selectedTime.isNotBlank() && !alreadyInCart
+            val canAddToCart = selectedDate.isNotBlank() && selectedTimeStart.isNotBlank() && !alreadyInCart
 
             SharedButton(
                 text    = if (alreadyInCart) "Added to cart" else "Add to Cart",
@@ -506,7 +602,9 @@ fun BookingScreen(
                             lon          = pinLon,
                             address      = confirmedAddress,
                             date         = selectedDate,
-                            time         = selectedTime,
+                            time         = selectedTimeStart,
+                            timeRange    = selectedTimeRange,
+                            specialInstructions = notes.trim(),
                         )
                     )
                 },

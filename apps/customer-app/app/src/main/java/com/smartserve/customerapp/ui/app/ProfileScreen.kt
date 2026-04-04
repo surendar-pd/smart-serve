@@ -37,10 +37,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.Surface
 import com.smartserve.sharedauth.AddressValidState
 import com.smartserve.sharedauth.AddressValidationStatusRow
 import com.smartserve.sharedauth.GeoResult
+import com.smartserve.sharedui.SharedListItem
 import kotlinx.coroutines.delay
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -53,6 +56,7 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onOpenPrivacyData: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -241,6 +245,15 @@ fun ProfileScreen(
                 onCheckedChange = viewModel::onNotifToggle,
                 title = "Push Notifications",
                 description = "Get notified about bookings and updates",
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            SharedListItem(
+                title = "Privacy & Data",
+                leadingIcon = Icons.Filled.PrivacyTip,
+                supportingText = "Read the C-SmartService privacy and data template.",
+                onClick = onOpenPrivacyData,
             )
 
             Spacer(modifier = Modifier.height(28.dp))

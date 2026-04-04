@@ -1,6 +1,8 @@
 package com.smartserve.providerapp.ui.app
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -272,6 +274,23 @@ fun ProviderNavigationScreen(
                     loading  = state.isLoading,
                     enabled  = !state.isLoading,
                     variant  = SharedButtonVariant.Outline,
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                SharedButton(
+                    text = "Open in Maps",
+                    onClick = {
+                        val customer = state.customerLocation
+                        val uri = if (customer != null) {
+                            Uri.parse("google.navigation:q=${customer.latitude},${customer.longitude}&mode=d")
+                        } else {
+                            Uri.parse("google.navigation:q=${Uri.encode(state.customerAddress.ifBlank { customerAddress })}&mode=d")
+                        }
+                        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = SharedButtonVariant.Outline,
                 )
 
                 Spacer(Modifier.height(8.dp))

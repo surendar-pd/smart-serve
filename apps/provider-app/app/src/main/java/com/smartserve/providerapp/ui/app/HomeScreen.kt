@@ -144,6 +144,13 @@ private fun RequestCard(request: ServiceRequest, onClick: () -> Unit) {
                     text    = "${request.date} · ${request.time}",
                     variant = SharedTextVariant.Caption,
                 )
+                if (request.specialInstructions.isNotBlank()) {
+                    SharedText(
+                        text = "Note: ${request.specialInstructions}",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 SharedText(

@@ -24,6 +24,8 @@ data class CartItem(
     val addressLng: Double = 0.0,
     val date: String = "",
     val time: String = "",
+    /** Optional instructions entered by customer for provider. */
+    val specialInstructions: String = "",
     val timeRange: String = "",
     val addedAtMillis: Long = 0L,
 )

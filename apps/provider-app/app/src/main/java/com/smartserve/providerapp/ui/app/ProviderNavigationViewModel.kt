@@ -54,6 +54,7 @@ class ProviderNavigationViewModel @AssistedInject constructor(
     val uiState: StateFlow<NavigationUiState> = _uiState.asStateFlow()
 
     private var routeRefreshJob: Job? = null
+    private var refreshStarted = false
 
     init {
         observeProviderLocation()
@@ -91,9 +92,12 @@ class ProviderNavigationViewModel @AssistedInject constructor(
                 .collect { location ->
                     val providerPoint = GeoPoint(location.latitude, location.longitude)
                     _uiState.update { it.copy(providerLocation = providerPoint) }
-                    if (_uiState.value.routePoints.isEmpty()) {
+                    if (_uiState.value.customerLocation != null) {
                         fetchRoute(providerPoint)
+                    }
+                    if (!refreshStarted) {
                         startRouteRefresh()
+                        refreshStarted = true
                     }
                 }
         }

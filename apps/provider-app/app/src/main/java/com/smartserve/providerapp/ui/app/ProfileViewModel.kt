@@ -3,13 +3,17 @@ package com.smartserve.providerapp.ui.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
+import com.google.firebase.firestore.SetOptions
+import com.smartserve.sharedauth.AuthCollections
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -29,11 +33,16 @@ data class ProfileUiState(
     val availabilityDays: List<String> = listOf("Mon", "Tue", "Wed", "Thu", "Fri"),
     val availabilityStart: String = "09:00",
     val availabilityEnd: String = "18:00",
+    val notificationSheetOpen: Boolean = false,
+    val pushNotifications: Boolean = true,
+    val requestNotifications: Boolean = true,
+    val serviceReminderNotifications: Boolean = true,
 )
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val auth: FirebaseAuth,
+    private val firestore: FirebaseFirestore,
     private val servicesRepository: ProviderServicesRepository,
 ) : ViewModel() {
 
@@ -65,6 +74,20 @@ class ProfileViewModel @Inject constructor(
                 displayName = user.displayName?.takeIf { n -> n.isNotBlank() } ?: "Provider",
                 memberSince = memberSince,
             )
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid).get().await()
+            }.onSuccess { doc ->
+                _uiState.update {
+                    it.copy(
+                        pushNotifications = doc.getBoolean("pushNotifications") ?: true,
+                        requestNotifications = doc.getBoolean("providerRequestNotifications") ?: true,
+                        serviceReminderNotifications = doc.getBoolean("providerServiceReminderNotifications") ?: true,
+                    )
+                }
+            }
         }
 
         viewModelScope.launch {
@@ -109,6 +132,34 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }
+
+    fun openNotificationSheet() = _uiState.update { it.copy(notificationSheetOpen = true, errorMessage = null) }
+    fun closeNotificationSheet() = _uiState.update { it.copy(notificationSheetOpen = false) }
+    fun onPushNotificationsChange(v: Boolean) = _uiState.update { it.copy(pushNotifications = v) }
+    fun onRequestNotificationsChange(v: Boolean) = _uiState.update { it.copy(requestNotifications = v) }
+    fun onServiceReminderNotificationsChange(v: Boolean) = _uiState.update { it.copy(serviceReminderNotifications = v) }
+
+    fun saveNotificationSettings() = viewModelScope.launch {
+        val uid = providerUid ?: return@launch
+        val s = _uiState.value
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
+        runCatching {
+            firestore.collection(AuthCollections.PROVIDER_PROFILES).document(uid)
+                .set(
+                    mapOf(
+                        "pushNotifications" to s.pushNotifications,
+                        "providerRequestNotifications" to s.requestNotifications,
+                        "providerServiceReminderNotifications" to s.serviceReminderNotifications,
+                    ),
+                    SetOptions.merge(),
+                )
+                .await()
+        }.onSuccess {
+            _uiState.update { it.copy(isSaving = false, notificationSheetOpen = false) }
+        }.onFailure { e ->
+            _uiState.update { it.copy(isSaving = false, errorMessage = e.localizedMessage ?: "Failed to save notification settings") }
+        }
+    }
 
     fun openAreaSheet() = _uiState.update { it.copy(areaSheetOpen = true, errorMessage = null) }
     fun closeAreaSheet() = _uiState.update { it.copy(areaSheetOpen = false) }
