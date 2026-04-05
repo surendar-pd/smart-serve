@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class ProviderSortOrder { Rating, PriceLow, PriceHigh }
+enum class ProviderSortOrder { Relevance, HighestRated, CostLowToHigh, CostHighToLow }
 
 sealed class CategoryListUiState {
     data object Loading : CategoryListUiState()
@@ -24,7 +24,7 @@ class CategoryListViewModel @Inject constructor(
     private val _state = MutableStateFlow<CategoryListUiState>(CategoryListUiState.Loading)
     val state: StateFlow<CategoryListUiState> = _state
 
-    private val _sortOrder = MutableStateFlow(ProviderSortOrder.Rating)
+    private val _sortOrder = MutableStateFlow(ProviderSortOrder.Relevance)
     val sortOrder: StateFlow<ProviderSortOrder> = _sortOrder
 
     // Raw unsorted list kept here so re-sorting doesn't need a re-fetch
@@ -51,9 +51,17 @@ class CategoryListViewModel @Inject constructor(
 
     private fun applySort() {
         val sorted = when (_sortOrder.value) {
-            ProviderSortOrder.Rating    -> rawProviders.sortedByDescending { it.avgRating }
-            ProviderSortOrder.PriceLow  -> rawProviders.sortedBy { it.categoryServiceRate }
-            ProviderSortOrder.PriceHigh -> rawProviders.sortedByDescending { it.categoryServiceRate }
+            ProviderSortOrder.Relevance -> rawProviders.sortedWith(
+                compareByDescending<CustomerProviderSummary> { it.totalReviews }
+                    .thenByDescending { it.avgRating }
+                    .thenBy { it.displayName.lowercase() },
+            )
+            ProviderSortOrder.HighestRated -> rawProviders.sortedWith(
+                compareByDescending<CustomerProviderSummary> { it.avgRating }
+                    .thenByDescending { it.totalReviews },
+            )
+            ProviderSortOrder.CostLowToHigh -> rawProviders.sortedBy { it.categoryServiceRate }
+            ProviderSortOrder.CostHighToLow -> rawProviders.sortedByDescending { it.categoryServiceRate }
         }
         _state.value = CategoryListUiState.Success(sorted)
     }

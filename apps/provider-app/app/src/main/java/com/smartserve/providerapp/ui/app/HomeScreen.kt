@@ -9,13 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -38,7 +37,6 @@ import com.smartserve.sharedui.SharedTextVariant
 private val filterOptions: List<Pair<String, RequestStatus>> = listOf(
     "New" to RequestStatus.PENDING,
     "Active" to RequestStatus.ACTIVE,
-    "Completed" to RequestStatus.COMPLETED,
 )
 
 @Composable
@@ -130,46 +128,65 @@ private fun RequestCard(request: ServiceRequest, onClick: () -> Unit) {
     SharedCard(onClick = onClick) {
         Row(
             modifier          = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             SharedAvatar(
                 name = request.customerFirstName.ifBlank { request.customerInitials },
                 size = 44.dp,
             )
             Spacer(Modifier.width(12.dp))
+
             Column(modifier = Modifier.weight(1f)) {
-                SharedText(text = request.customerFirstName, variant = SharedTextVariant.BodyStrong)
-                SharedText(text = request.serviceType, variant = SharedTextVariant.Body)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        SharedText(
+                            text = request.customerFirstName.ifBlank { "Customer" },
+                            variant = SharedTextVariant.BodyStrong,
+                        )
+                        SharedText(
+                            text = request.serviceType.ifBlank { request.categoryLabel.ifBlank { "Service" } },
+                            variant = SharedTextVariant.Body,
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        SharedText(
+                            text = "$${request.earnings}",
+                            variant = SharedTextVariant.BodyStrong,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        SharedText(
+                            text = when (request.status) {
+                                RequestStatus.ACTIVE -> "Active"
+                                RequestStatus.NEW, RequestStatus.PENDING -> "New"
+                                RequestStatus.COMPLETED -> "Completed"
+                                RequestStatus.DECLINED -> "Declined"
+                            },
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+
                 SharedText(
                     text    = "${request.date} · ${request.time}",
                     variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
                 if (request.specialInstructions.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
                     SharedText(
                         text = "Note: ${request.specialInstructions}",
                         variant = SharedTextVariant.Caption,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                SharedText(
-                    text = when (request.status) {
-                        RequestStatus.PENDING -> "● Pending"
-                        RequestStatus.ACTIVE -> "● Active"
-                        RequestStatus.COMPLETED -> "● Completed"
-                        RequestStatus.DECLINED -> "● Declined"
-                        RequestStatus.NEW -> "● New"
-                    },
-                    variant = SharedTextVariant.Caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(4.dp))
-                Icon(
-                    imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = "View",
-                    tint               = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }

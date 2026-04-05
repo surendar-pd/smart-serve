@@ -106,10 +106,9 @@ class BookingViewModel @Inject constructor(
 
     fun observeBookedSlotStarts(
         providerUid: String,
-        serviceId: String,
         dateLabel: String,
     ): Flow<Set<String>> {
         if (dateLabel.isBlank()) return flowOf(emptySet())
-        return repo.observeBookedSlotStarts(providerUid, serviceId, dateLabel)
+        return repo.observeBookedSlotStarts(providerUid, dateLabel)
     }
 }

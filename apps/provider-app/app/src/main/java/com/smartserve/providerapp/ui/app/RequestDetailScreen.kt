@@ -51,6 +51,12 @@ import org.osmdroid.util.GeoPoint as OsmGeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
+private fun streetAddressOnly(address: String): String {
+    val value = address.trim()
+    if (value.isBlank()) return ""
+    return value.substringBefore(",").trim().ifBlank { value }
+}
+
 @Composable
 fun RequestDetailScreen(
     bookingId: String,
@@ -99,6 +105,9 @@ fun RequestDetailScreen(
 
             else -> {
                 val req = state.request!!
+                val streetAddress = streetAddressOnly(
+                    req.homeAddress.ifBlank { req.neighborhood }
+                )
                 var showCompleteSheet by remember { mutableStateOf(false) }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -174,12 +183,6 @@ fun RequestDetailScreen(
                                     .height(180.dp)
                                     .clip(RoundedCornerShape(12.dp)),
                             )
-                        } else {
-                            SharedText(
-                                text = "Customer location is hidden after completion for security.",
-                                variant = SharedTextVariant.Caption,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -189,7 +192,7 @@ fun RequestDetailScreen(
                         DetailRow(label = "Date",     value = req.date)
                         DetailRow(label = "Time",     value = req.time)
                         if (!hideLocation) {
-                            DetailRow(label = "Area", value = req.neighborhood)
+                            DetailRow(label = "Street", value = streetAddress)
                         }
                         if (req.status == RequestStatus.COMPLETED && req.customerRating != null) {
                             Spacer(Modifier.height(6.dp))
@@ -202,7 +205,7 @@ fun RequestDetailScreen(
                             SharedRating(rating = req.customerRating, starSize = 24.dp)
                         }
 
-                        if (req.specialInstructions.isNotBlank()) {
+                        if (!hideLocation && req.specialInstructions.isNotBlank()) {
                             Spacer(Modifier.height(12.dp))
                             SharedText(text = "Special Instructions", variant = SharedTextVariant.BodyStrong)
                             Spacer(Modifier.height(4.dp))

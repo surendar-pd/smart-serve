@@ -107,6 +107,24 @@ service cloud.firestore {
     match /provider_profiles/{providerId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == providerId;
+
+      match /ratings/{ratingId} {
+        allow read: if request.auth != null;
+
+        allow create, update: if request.auth != null
+          && request.resource.data.bookingId is string
+          && request.resource.data.customerId == request.auth.uid
+          && request.resource.data.providerId == providerId
+          && request.resource.data.rating is number
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customer
+              == customerProfileRef(request.auth.uid)
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.provider
+              == providerProfileRef(providerId);
+
+        allow delete: if false;
+      }
     }
 
     // ── Legacy / auxiliary collections (replace former catch-all) ───────

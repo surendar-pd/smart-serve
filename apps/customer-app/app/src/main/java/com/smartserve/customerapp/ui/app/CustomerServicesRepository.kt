@@ -6,6 +6,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import com.smartserve.sharedauth.AuthCollections
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +38,27 @@ class CustomerServicesRepository @Inject constructor(
 
     private fun cartItemsCollection(customerUid: String) =
         customerProfiles.document(customerUid).collection(AuthCollections.CUSTOMER_CART_ITEMS)
+
+    private suspend fun providerRatingFromProfile(providerUid: String): Pair<Double, Int> {
+        return runCatching {
+            val ratingsSnap = profiles.document(providerUid)
+                .collection("ratings")
+                .get().await()
+
+            val ratings = ratingsSnap.documents.mapNotNull { doc ->
+                doc.getDouble("rating") ?: doc.getLong("rating")?.toDouble()
+            }.filter { it in 1.0..5.0 }
+
+            if (ratings.isNotEmpty()) {
+                ratings.average() to ratings.size
+            } else {
+                val doc = profiles.document(providerUid).get().await()
+                val avg = doc.getDouble("avgRating") ?: doc.getLong("avgRating")?.toDouble() ?: 5.0
+                val total = doc.getLong("totalReviews")?.toInt() ?: 0
+                avg to total
+            }
+        }.getOrDefault(5.0 to 0)
+    }
 
     /**
      * Live cart for the signed-in customer. Emits empty when logged out.
@@ -119,19 +141,20 @@ class CustomerServicesRepository @Inject constructor(
      */
     suspend fun getProvidersByCategory(categoryId: String): List<CustomerProviderSummary> {
         return try {
-            val categoryRef = categories.document(categoryId)
-            // Single-field equality only → no composite index required
-            val snap = services
-                .whereEqualTo("category", categoryRef)
-                .get().await()
+            // Read broadly and filter in-memory so both legacy and current document shapes work.
+            val snap = services.get().await()
 
-            val activeDocs = snap.documents.filter { it.getBoolean("isActive") == true }
+            val categoryDocs = snap.documents.filter { doc ->
+                extractCategoryId(doc) == categoryId
+            }
+
+            val activeDocs = categoryDocs.filter { it.getBoolean("isActive") != false }
 
             val activeProviderIds = activeDocs
-                .mapNotNull { it.getDocumentReference("provider")?.id }
+                .mapNotNull { doc -> extractProviderId(doc) }
                 .distinct()
 
-            Log.d(TAG, "getProvidersByCategory($categoryId): ${snap.size()} docs, ${activeProviderIds.size} active providers")
+            Log.d(TAG, "getProvidersByCategory($categoryId): ${categoryDocs.size} category docs, ${activeProviderIds.size} active providers")
 
             // Try to resolve a name for each provider.
             // 1. profile.displayName (fast path – usually populated for new accounts)
@@ -143,7 +166,7 @@ class CustomerServicesRepository @Inject constructor(
             // Build a quick map from docs already in this query
             val inQueryOnboardingTitle: Map<String, String> = activeDocs
                 .mapNotNull { doc ->
-                    val provId = doc.getDocumentReference("provider")?.id ?: return@mapNotNull null
+                    val provId = extractProviderId(doc) ?: return@mapNotNull null
                     val title = doc.getString("title")?.trim().orEmpty()
                     if (doc.id == provId && title.isNotBlank() && title != "Service")
                         provId to title
@@ -152,10 +175,16 @@ class CustomerServicesRepository @Inject constructor(
 
             // Index active service docs by provider UID for quick lookup
             val serviceDocsByProvider: Map<String, List<com.google.firebase.firestore.DocumentSnapshot>> =
-                activeDocs.groupBy { it.getDocumentReference("provider")?.id ?: "" }
+                activeDocs.groupBy { doc ->
+                    extractProviderId(doc) ?: ""
+                }
 
             activeProviderIds.mapNotNull { uid ->
                 val profileDoc = profiles.document(uid).get().await()
+                if (!isProviderProfileActive(profileDoc)) {
+                    Log.d(TAG, "Skipping inactive provider in category list: $uid")
+                    return@mapNotNull null
+                }
                 val profileName = profileDoc.getString("displayName")?.trim()
                     ?.takeIf { it.isNotBlank() }
 
@@ -177,9 +206,27 @@ class CustomerServicesRepository @Inject constructor(
                     ?.mapNotNull { it?.toString() } ?: emptyList()
                 val categoryStart = svcDoc?.getString("availabilityStart") ?: ""
                 val categoryEnd   = svcDoc?.getString("availabilityEnd")   ?: ""
+                val (avgRating, totalReviews) = providerRatingFromProfile(uid)
+
+                val serviceTitles = runCatching {
+                    snap.documents.asSequence()
+                        .filter { doc ->
+                            val providerMatch = extractProviderId(doc) == uid
+                            providerMatch && doc.getBoolean("isActive") != false
+                        }
+                        .mapNotNull { doc ->
+                            doc.getString("title")?.trim()?.takeIf { title -> title.isNotBlank() }
+                        }
+                        .distinct()
+                        .sorted()
+                        .toList()
+                }.getOrDefault(emptyList())
 
                 profileDoc.toCustomerProviderSummary(fallbackName = fallbackName)?.copy(
-                    serviceDescription = svcDoc?.getString("description").orEmpty(),
+                    avgRating = avgRating,
+                    totalReviews = totalReviews,
+                    serviceTitles = serviceTitles,
+                    serviceDescription = "",
                     hourlyRate = categoryRate,
                     categoryServiceRate = categoryRate,
                     categoryAvailabilityDays = categoryDays,
@@ -203,21 +250,37 @@ class CustomerServicesRepository @Inject constructor(
         categoryId: String = "",
     ): List<CustomerServiceListing> {
         return try {
-            val providerRef = profiles.document(providerUid)
-            // Single-field equality only → no composite index required
-            val snap = services
-                .whereEqualTo("provider", providerRef)
-                .get().await()
+            // Read services broadly and filter in-memory so older docs with legacy provider shapes
+            // still show up in the customer-facing list.
+            val snap = services.get().await()
+            val (providerAvgRating, providerTotalReviews) = providerRatingFromProfile(providerUid)
 
             Log.d(TAG, "getServicesForProvider($providerUid, cat=$categoryId): ${snap.size()} docs total")
 
-            snap.documents
-                .filter { doc ->
-                    val active = doc.getBoolean("isActive") == true
-                    val matchesCat = categoryId.isEmpty() ||
-                        doc.getDocumentReference("category")?.id == categoryId
-                    active && matchesCat
-                }
+            val providerDocs = snap.documents.filter { doc ->
+                extractProviderId(doc) == providerUid && doc.getBoolean("isActive") != false
+            }
+
+            val candidateDocs = if (categoryId.isBlank()) {
+                providerDocs
+            } else {
+                val inCategory = providerDocs.filter { doc -> extractCategoryId(doc) == categoryId }
+                if (inCategory.isNotEmpty()) inCategory else providerDocs
+            }
+
+            Log.d(
+                TAG,
+                "getServicesForProvider($providerUid, cat=$categoryId): ${providerDocs.size} provider docs, ${candidateDocs.size} candidate docs, providerName=$providerName"
+            )
+
+            candidateDocs.forEach { doc ->
+                Log.d(
+                    TAG,
+                    "serviceMatch provider=$providerUid docId=${doc.id} title=${doc.getString("title")} extractedProvider=${extractProviderId(doc)} extractedCategory=${extractCategoryId(doc)} active=${doc.getBoolean("isActive")}",
+                )
+            }
+
+            candidateDocs
                 .mapNotNull { doc ->
                     val title = doc.getString("title")?.trim().orEmpty()
                         .ifBlank { return@mapNotNull null }
@@ -233,6 +296,8 @@ class CustomerServicesRepository @Inject constructor(
                             ?.mapNotNull { it?.toString() } ?: emptyList(),
                         availabilityStart = doc.getString("availabilityStart") ?: "09:00",
                         availabilityEnd = doc.getString("availabilityEnd") ?: "18:00",
+                        providerAvgRating = providerAvgRating,
+                        providerTotalReviews = providerTotalReviews,
                         photoUrls = doc.readPhotoUrls(),
                     )
                 }
@@ -255,13 +320,13 @@ class CustomerServicesRepository @Inject constructor(
 
             // Batch fetch unique provider names
             val providerIds = snap.documents
-                .mapNotNull { it.getDocumentReference("provider")?.id }
+                .mapNotNull { doc -> extractProviderId(doc) }
                 .distinct()
 
             // Build name fallback map from services already fetched (onboarding doc has id == uid)
             val inQueryOnboardingTitle: Map<String, String> = snap.documents
                 .mapNotNull { doc ->
-                    val provId = doc.getDocumentReference("provider")?.id ?: return@mapNotNull null
+                    val provId = extractProviderId(doc) ?: return@mapNotNull null
                     val title = doc.getString("title")?.trim().orEmpty()
                     if (doc.id == provId && title.isNotBlank() && title != "Service")
                         provId to title
@@ -269,8 +334,12 @@ class CustomerServicesRepository @Inject constructor(
                 }.toMap()
 
             val providerNames = providerIds.associate { uid ->
-                val profileName = profiles.document(uid).get().await().getString("displayName")
-                    ?.trim()?.takeIf { it.isNotBlank() }
+                val profileDoc = profiles.document(uid).get().await()
+                val profileName = if (isProviderProfileActive(profileDoc)) {
+                    profileDoc.getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+                } else {
+                    null
+                }
 
                 val name = profileName
                     ?: inQueryOnboardingTitle[uid]?.takeIf { it.isNotBlank() }
@@ -282,12 +351,17 @@ class CustomerServicesRepository @Inject constructor(
             }
 
             snap.documents
-                .filter { it.getBoolean("isActive") == true }
+                .filter { it.getBoolean("isActive") != false }
                 .mapNotNull { doc ->
-                val providerUid = doc.getDocumentReference("provider")?.id
+                val providerUid = extractProviderId(doc)
                     ?: return@mapNotNull null
+                val providerDoc = profiles.document(providerUid).get().await()
+                if (!isProviderProfileActive(providerDoc)) {
+                    return@mapNotNull null
+                }
                 val title = doc.getString("title")?.trim().orEmpty()
                     .ifBlank { return@mapNotNull null }
+                val (providerAvgRating, providerTotalReviews) = providerRatingFromProfile(providerUid)
                 CustomerServiceListing(
                     serviceId = doc.id,
                     title = title,
@@ -300,6 +374,8 @@ class CustomerServicesRepository @Inject constructor(
                         ?.mapNotNull { it?.toString() } ?: emptyList(),
                     availabilityStart = doc.getString("availabilityStart") ?: "09:00",
                     availabilityEnd = doc.getString("availabilityEnd") ?: "18:00",
+                    providerAvgRating = providerAvgRating,
+                    providerTotalReviews = providerTotalReviews,
                     photoUrls = doc.readPhotoUrls(),
                 )
             }
@@ -338,6 +414,9 @@ class CustomerServicesRepository @Inject constructor(
             }
 
             snap.documents.mapNotNull { profileDoc ->
+                if (!isProviderProfileActive(profileDoc)) {
+                    return@mapNotNull null
+                }
                 val uid = profileDoc.id
                 val svcSnap = runCatching { services.document(uid).get().await() }.getOrNull()
                 val listingDesc = svcSnap?.getString("description").orEmpty()
@@ -378,6 +457,14 @@ class CustomerServicesRepository @Inject constructor(
     suspend fun confirmBookings(items: List<CartItem>): Result<Unit> = runCatching {
         val customerId = auth.currentUser?.uid
             ?: error("Customer not signed in")
+
+        // Guard against stale UI: re-check each provider slot before writing bookings.
+        items.forEach { item ->
+            if (isProviderSlotBlocked(item.providerUid, item.date, item.time)) {
+                error("Selected time slot is no longer available for this provider")
+            }
+        }
+
         val batch = firestore.batch()
         val customerRef = customerProfiles.document(customerId)
         items.forEach { item ->
@@ -387,6 +474,38 @@ class CustomerServicesRepository @Inject constructor(
             batch.set(doc, payload)
         }
         batch.commit().await()
+    }
+
+    private suspend fun isProviderSlotBlocked(
+        providerUid: String,
+        dateLabel: String,
+        slotStart: String,
+    ): Boolean {
+        if (providerUid.isBlank() || dateLabel.isBlank() || slotStart.isBlank()) return false
+
+        val allowedStatuses = setOf("pending", "active", "confirmed")
+        val normalizedStart = normalizeSlotStartLabel(slotStart)
+
+        // Read broadly to support both current and legacy booking field shapes.
+        val snap = bookings.get().await()
+        return snap.documents.any { doc ->
+            val status = doc.getString("status")?.lowercase()?.trim().orEmpty()
+            if (status !in allowedStatuses) return@any false
+
+            val docProviderId = extractProviderId(doc)
+                ?: normalizeRefId(doc.getString("provider"))
+                ?: normalizeRefId(doc.getString("providerId"))
+                ?: normalizeRefId(doc.getString("providerUid"))
+                ?: ""
+            if (docProviderId != providerUid) return@any false
+
+            val docDate = extractBookingDateLabel(doc)
+            if (docDate != dateLabel) return@any false
+
+            val docStart = extractBookingStartLabel(doc)
+
+            docStart == normalizedStart
+        }
     }
 
     private fun buildBookingPayload(
@@ -490,25 +609,24 @@ class CustomerServicesRepository @Inject constructor(
     }.distinctUntilChanged()
 
     /**
-     * Real-time booked slot starts for a provider+service+date.
-     * Blocks starts that are currently pending/active.
+     * Real-time booked slot starts for a provider+date across all services.
+     * Blocks starts that are currently pending/active/confirmed.
      */
     fun observeBookedSlotStarts(
         providerUid: String,
-        serviceId: String,
         dateLabel: String,
     ): Flow<Set<String>> = callbackFlow {
-        if (providerUid.isBlank() || serviceId.isBlank() || dateLabel.isBlank()) {
+        if (providerUid.isBlank() || dateLabel.isBlank()) {
             trySend(emptySet())
             close()
             return@callbackFlow
         }
 
-        val providerRef = profiles.document(providerUid)
-        val allowedStatuses = setOf("pending", "active")
-        val dateFormatter = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
+        val allowedStatuses = setOf("pending", "active", "confirmed")
 
-        val sub = bookings.whereEqualTo("provider", providerRef)
+        // Read broadly and filter in-memory to include legacy booking docs that don't store
+        // provider as a DocumentReference.
+        val sub = bookings
             .addSnapshotListener { snap, err ->
                 if (err != null || snap == null) {
                     Log.e(TAG, "observeBookedSlotStarts listener error", err)
@@ -520,21 +638,17 @@ class CustomerServicesRepository @Inject constructor(
                     val status = doc.getString("status")?.lowercase()?.trim().orEmpty()
                     if (status !in allowedStatuses) return@mapNotNull null
 
-                    val docServiceId = doc.getDocumentReference("service")?.id.orEmpty()
-                    if (docServiceId != serviceId) return@mapNotNull null
+                    val docProviderId = extractProviderId(doc)
+                        ?: normalizeRefId(doc.getString("provider"))
+                        ?: normalizeRefId(doc.getString("providerId"))
+                        ?: normalizeRefId(doc.getString("providerUid"))
+                        ?: ""
+                    if (docProviderId != providerUid) return@mapNotNull null
 
-                    val docDate = doc.getTimestamp("bookingDate")?.let { ts ->
-                        dateFormatter.format(ts.toDate())
-                    }.orEmpty()
+                    val docDate = extractBookingDateLabel(doc)
                     if (docDate != dateLabel) return@mapNotNull null
 
-                    doc.getString("timeSlot")
-                        ?.trim()
-                        ?.takeIf { it.isNotBlank() }
-                        ?: doc.getString("timeRange")
-                            ?.substringBefore("-")
-                            ?.trim()
-                            ?.takeIf { it.isNotBlank() }
+                    extractBookingStartLabel(doc).takeIf { it.isNotBlank() }
                 }.toSet()
 
                 trySend(blockedStarts)
@@ -636,7 +750,29 @@ class CustomerServicesRepository @Inject constructor(
     suspend fun rateProvider(bookingId: String, rating: Float): Result<Unit> = runCatching {
         val uid = auth.currentUser?.uid ?: error("Customer not signed in")
         Log.d(TAG, "rateProvider uid=${uid.take(6)}… id=$bookingId rating=$rating")
-        bookings.document(bookingId).update("providerRating", rating.toDouble()).await()
+        val bookingRef = bookings.document(bookingId)
+        val bookingSnap = bookingRef.get().await()
+        val providerId = bookingSnap.getDocumentReference("provider")?.id
+            ?: error("Booking missing provider reference")
+
+        val providerRatingRef = profiles.document(providerId)
+            .collection("ratings")
+            .document(bookingId)
+
+        val batch = firestore.batch()
+        batch.update(bookingRef, "providerRating", rating.toDouble())
+        batch.set(
+            providerRatingRef,
+            mapOf(
+                "bookingId" to bookingId,
+                "providerId" to providerId,
+                "customerId" to uid,
+                "rating" to rating.toDouble(),
+                "updatedAt" to Timestamp.now(),
+            ),
+            SetOptions.merge(),
+        )
+        batch.commit().await()
         Unit
     }
 }
@@ -652,6 +788,140 @@ private fun parseCartDateToTimestamp(dateStr: String): Timestamp? {
         val fmt = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
         Timestamp(fmt.parse(dateStr)!!)
     }.getOrNull()
+}
+
+private fun normalizeRefId(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank()) return null
+    return value.substringAfterLast('/').takeIf { it.isNotBlank() }
+}
+
+private fun extractProviderId(doc: com.google.firebase.firestore.DocumentSnapshot): String? {
+    doc.getDocumentReference("provider")?.id?.let { if (it.isNotBlank()) return it }
+    normalizeRefId(doc.getString("provider"))?.let { return it }
+    normalizeRefId(doc.getString("providerId"))?.let { return it }
+    normalizeRefId(doc.getString("providerUid"))?.let { return it }
+
+    val raw = doc.get("provider")
+    if (raw is Map<*, *>) {
+        normalizeRefId(raw["id"]?.toString())?.let { return it }
+        normalizeRefId(raw["uid"]?.toString())?.let { return it }
+        normalizeRefId(raw["path"]?.toString())?.let { return it }
+    }
+    return null
+}
+
+private fun extractCategoryId(doc: com.google.firebase.firestore.DocumentSnapshot): String? {
+    doc.getDocumentReference("category")?.id?.let { if (it.isNotBlank()) return it }
+    normalizeRefId(doc.getString("category"))?.let { return it }
+    normalizeRefId(doc.getString("categoryId"))?.let { return it }
+
+    val raw = doc.get("category")
+    if (raw is Map<*, *>) {
+        normalizeRefId(raw["id"]?.toString())?.let { return it }
+        normalizeRefId(raw["path"]?.toString())?.let { return it }
+    }
+    return null
+}
+
+private fun providerNameMatches(
+    doc: com.google.firebase.firestore.DocumentSnapshot,
+    expectedName: String,
+): Boolean {
+    val target = expectedName.trim().lowercase()
+    if (target.isBlank()) return false
+
+    val hints = listOf(
+        doc.getString("providerName"),
+        doc.getString("providerDisplayName"),
+        doc.getString("providerNameCache"),
+        doc.getString("displayName"),
+    ).mapNotNull { it?.trim()?.takeIf { s -> s.isNotBlank() } }
+
+    return hints.any { it.lowercase() == target }
+}
+
+private fun isProviderProfileActive(
+    profileDoc: com.google.firebase.firestore.DocumentSnapshot,
+): Boolean {
+    // Prefer explicit booleans when present.
+    profileDoc.getBoolean("isActive")?.let { return it }
+    profileDoc.getBoolean("active")?.let { return it }
+    profileDoc.getBoolean("isAvailable")?.let { return it }
+    profileDoc.getBoolean("isOnline")?.let { return it }
+    profileDoc.getBoolean("online")?.let { return it }
+
+    // Fall back to status-style fields used in some profile schemas.
+    val statusTokens = listOfNotNull(
+        profileDoc.getString("status"),
+        profileDoc.getString("providerStatus"),
+        profileDoc.getString("accountStatus"),
+        profileDoc.getString("availabilityStatus"),
+    ).map { it.trim().lowercase() }
+
+    if (statusTokens.any { it in setOf("inactive", "disabled", "suspended", "offline", "blocked") }) {
+        return false
+    }
+    if (statusTokens.any { it in setOf("active", "available", "online", "enabled") }) {
+        return true
+    }
+
+    // No explicit marker found: keep backward-compatible behavior.
+    return true
+}
+
+private fun normalizeSlotStartLabel(raw: String?): String {
+    val input = raw?.trim().orEmpty()
+    if (input.isBlank()) return ""
+
+    val candidates = listOf(
+        "h:mm a",
+        "hh:mm a",
+        "h:mma",
+        "hh:mma",
+        "H:mm",
+        "HH:mm",
+    )
+
+    candidates.forEach { pattern ->
+        val parsed = runCatching {
+            SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }.parse(input)
+        }.getOrNull()
+        if (parsed != null) {
+            return SimpleDateFormat("h:mm a", Locale.getDefault()).format(parsed).trim().lowercase()
+        }
+    }
+
+    return input.lowercase().replace("  ", " ")
+}
+
+private fun extractBookingDateLabel(
+    doc: com.google.firebase.firestore.DocumentSnapshot,
+): String {
+    doc.getTimestamp("bookingDate")?.let { ts ->
+        return SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()).format(ts.toDate())
+    }
+
+    val direct = listOf(
+        doc.getString("scheduledDate"),
+        doc.getString("date"),
+        doc.getString("bookingDate"),
+    ).mapNotNull { it?.trim()?.takeIf { v -> v.isNotBlank() } }.firstOrNull()
+
+    return direct.orEmpty()
+}
+
+private fun extractBookingStartLabel(
+    doc: com.google.firebase.firestore.DocumentSnapshot,
+): String {
+    val rawStart = listOf(
+        doc.getString("timeSlot"),
+        doc.getString("scheduledTime"),
+        doc.getString("time"),
+        doc.getString("timeRange")?.substringBefore("-"),
+    ).mapNotNull { it?.trim()?.takeIf { v -> v.isNotBlank() } }.firstOrNull()
+
+    return normalizeSlotStartLabel(rawStart)
 }
 
 private fun com.google.firebase.firestore.DocumentSnapshot.toCartLine(): CartItem? {
@@ -695,8 +965,9 @@ private fun com.google.firebase.firestore.DocumentSnapshot.toCustomerProviderSum
     return CustomerProviderSummary(
         uid = uid,
         displayName = displayName,
-        avgRating = getDouble("avgRating") ?: getLong("avgRating")?.toDouble() ?: 0.0,
+        avgRating = getDouble("avgRating") ?: getLong("avgRating")?.toDouble() ?: 5.0,
         totalReviews = getLong("totalReviews")?.toInt() ?: 0,
+        serviceTitles = emptyList(),
         serviceDescription = "",
         hourlyRate = 0.0,
     )
