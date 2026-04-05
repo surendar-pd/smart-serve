@@ -40,6 +40,7 @@ import com.smartserve.sharedui.SharedTextField
 import com.smartserve.sharedui.SharedTextFieldVariant
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun ChatScreen(
@@ -48,11 +49,13 @@ fun ChatScreen(
     bottomPadding: Dp = 0.dp,
     topPadding: Dp = 0.dp,
 ) {
+    val context = LocalContext.current
     val viewModel = remember(bookingId) {
         ChatViewModel(
             bookingId      = bookingId,
             chatRepository = ChatRepository(FirebaseFirestore.getInstance()),
             auth           = FirebaseAuth.getInstance(),
+            context        = context,
         )
     }
 
