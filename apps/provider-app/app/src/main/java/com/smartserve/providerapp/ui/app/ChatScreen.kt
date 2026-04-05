@@ -33,6 +33,7 @@ import java.util.Locale
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun ChatScreen(
@@ -41,11 +42,13 @@ fun ChatScreen(
     bottomPadding: Dp = 0.dp,   // ← receives nav bar height from AppScreen
     topPadding: Dp = 0.dp,
 ) {
+    val context = LocalContext.current
     val viewModel = remember(bookingId) {
         ChatViewModel(
             bookingId      = bookingId,
             chatRepository = ChatRepository(FirebaseFirestore.getInstance()),
             auth           = FirebaseAuth.getInstance(),
+            context         = context,
         )
     }
 

@@ -68,3 +68,4 @@ Thumbs.db
 .codex/
 .claude/
 
+**/assets/service-account.json

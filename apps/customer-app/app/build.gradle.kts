@@ -94,4 +94,8 @@ dependencies {
 
     // OpenStreetMap (address picker — no API key required)
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+
+    implementation("com.google.firebase:firebase-messaging-ktx:24.1.0")    
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 }
+

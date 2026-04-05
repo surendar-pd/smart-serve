@@ -135,4 +135,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // (No ImageKit SDK dependency; uploads use ImageKit HTTP API)
+    implementation("com.google.firebase:firebase-messaging-ktx:24.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 }

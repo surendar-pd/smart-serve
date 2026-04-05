@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.firestore.SetOptions
 
 private const val TAG = "SMARTSERVE_AUTH"
 
@@ -103,6 +105,7 @@ class AuthViewModel @Inject constructor(
                     }
                     return@launch
                 }
+		saveFcmToken()
                 Log.d(TAG, "Role OK — calling routeAfterAuth()")
                 routeAfterAuth(uid, role)
             }
@@ -116,6 +119,7 @@ class AuthViewModel @Inject constructor(
 
     fun signUpCustomer() = viewModelScope.launch {
         Log.d(TAG, "signUpCustomer() called")
+	saveFcmToken()
         val s = _uiState.value
         if (!validateSignUp(requirePhone = false)) return@launch
         _uiState.update { it.copy(isLoading = true) }
@@ -166,6 +170,7 @@ class AuthViewModel @Inject constructor(
                     serviceCenter = null,
                     serviceRadiusKm = 10.0,
                 ).onSuccess {
+		    saveFcmToken()
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -209,6 +214,7 @@ class AuthViewModel @Inject constructor(
                     }
                     return@launch
                 }
+		saveFcmToken()
                 routeAfterAuth(uid, actualRole)
             }
             is AuthResult.Error -> {
@@ -291,6 +297,26 @@ class AuthViewModel @Inject constructor(
         Log.d(TAG, "signOut() called")
         repository.signOut()
     }
+    private fun saveFcmToken() {
+    	val uid = repository.getCurrentUserId() ?: return
+    	FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+        	val collection = when (expectedAppRole) {
+            		UserRole.PROVIDER.value -> "provider_profiles"
+            		else -> "users"
+        	}
+        	com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            	.collection(collection)
+            	.document(uid)
+            	.update("fcmToken", token)
+            	.addOnFailureListener {
+                	// Fallback: document may not exist yet — use set with merge
+                	com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    	.collection(collection)
+                    	.document(uid)
+                    	.set(mapOf("fcmToken" to token), SetOptions.merge())
+            		}
+    		}
+	}
 }
 
 // ── CustomerProfileViewModel ──────────────────────────────────────────────────

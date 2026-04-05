@@ -302,6 +302,8 @@ class AuthRepository @Inject constructor(
         user.updateProfile(request).await()
     }
 
+    fun getCurrentUserId(): String? = auth.currentUser?.uid
+
     /**
      * Updates Firebase Auth profile (display name / photo URL) when [auth.currentUser] matches [uid].
      * Phone numbers require Phone Auth; keep those in [CustomerProfile] / [ProviderServiceProfile].
