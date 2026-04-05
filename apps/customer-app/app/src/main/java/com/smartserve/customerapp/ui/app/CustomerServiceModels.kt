@@ -5,6 +5,7 @@ data class CustomerProviderSummary(
     val displayName: String,
     val avgRating: Double,
     val totalReviews: Int,
+    val serviceTitles: List<String> = emptyList(),
     val serviceDescription: String,
     val hourlyRate: Double = 0.0,
     // Populated when loaded in the context of a specific category
@@ -24,6 +25,8 @@ data class CustomerServiceListing(
     val availabilityDays: List<String>,
     val availabilityStart: String,
     val availabilityEnd: String,
+    val providerAvgRating: Double = 5.0,
+    val providerTotalReviews: Int = 0,
     /** Hosted image URLs from the provider listing (e.g. ImageKit); empty if none. */
     val photoUrls: List<String> = emptyList(),
 )

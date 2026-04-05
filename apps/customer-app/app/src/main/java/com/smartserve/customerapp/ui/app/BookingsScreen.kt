@@ -83,7 +83,7 @@ fun BookingsScreen(
                 is BookingsUiState.Loading -> SharedLoading(modifier = Modifier.fillMaxSize())
 
                 is BookingsUiState.Error -> SharedErrorState(
-                    title       = "Couldn't load bookings",
+                    title       = "Unable to Load Bookings",
                     description = s.message,
                     modifier    = Modifier.fillMaxSize(),
                 )

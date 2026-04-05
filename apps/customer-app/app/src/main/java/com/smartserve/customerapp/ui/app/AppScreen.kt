@@ -113,6 +113,7 @@ fun AppScreen(
                         providerUid  = selectedProviderUid,
                         providerName = selectedProviderName,
                         categoryId   = selectedCategoryId,
+                        categoryLabel = selectedCategoryLabel,
                         onBack       = { selectedProviderUid = ""; selectedProviderName = "" },
                         onSelectService = { svc -> selectedService = svc },
                     )
@@ -170,6 +171,7 @@ fun AppScreen(
                         providerUid  = searchProviderUid,
                         providerName = searchProviderName,
                         categoryId   = "",           // search is cross-category
+                        categoryLabel = "Services",
                         onBack       = { searchProviderUid = ""; searchProviderName = "" },
                         onSelectService = { svc -> searchSelectedService = svc },
                     )

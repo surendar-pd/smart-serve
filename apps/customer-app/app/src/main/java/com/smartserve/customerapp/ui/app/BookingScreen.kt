@@ -101,6 +101,15 @@ private fun formatSelectedDateFromUtcMillis(utcMillis: Long): String {
     return formatter.format(Date(utcMillis))
 }
 
+private fun currentUtcDayStartMillis(): Long {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    cal.set(Calendar.HOUR_OF_DAY, 0)
+    cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0)
+    cal.set(Calendar.MILLISECOND, 0)
+    return cal.timeInMillis
+}
+
 private fun parseAvailabilityTimeToMinutes(raw: String, fallbackHour24: Int): Int {
     val text = raw.trim()
     if (text.isBlank()) return fallbackHour24 * 60
@@ -255,6 +264,7 @@ fun BookingScreen(
     val windowLabel  = "${formatTime(startHour, startMinute)} – ${formatTime(endHour, endMinute)}"
 
     var selectedDate    by remember { mutableStateOf("") }
+    var selectedDateUtcMillis by remember { mutableStateOf<Long?>(null) }
     var selectedTimeStart by remember { mutableStateOf("") }
     var selectedTimeRange by remember { mutableStateOf("") }
     var timeError       by remember { mutableStateOf("") }
@@ -283,22 +293,28 @@ fun BookingScreen(
     val confirmedAddress = geoResult?.fullAddress ?: addressQuery
     val addressValid     = geoResult?.isInOttawa ?: false   // null = not yet resolved
     val hourlySlots = remember(startMinutes, endMinutes) { buildHourlySlots(startMinutes, endMinutes) }
-    val bookedStarts by remember(selectedDate, service.providerUid, service.serviceId) {
-        viewModel.observeBookedSlotStarts(service.providerUid, service.serviceId, selectedDate)
+    val bookedStarts by remember(selectedDate, service.providerUid) {
+        viewModel.observeBookedSlotStarts(service.providerUid, selectedDate)
     }.collectAsState(initial = emptySet())
+    val todayUtcStart = currentUtcDayStartMillis()
+    val selectedIsToday = selectedDateUtcMillis == todayUtcStart
+    val currentLocalMinutes = Calendar.getInstance().let {
+        it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
+    }
+    val selectedStartMinutes = if (selectedTimeStart.isBlank()) {
+        -1
+    } else {
+        parseAvailabilityTimeToMinutes(selectedTimeStart, fallbackHour24 = 0)
+    }
+    val selectedTimeIsPast =
+        selectedIsToday && selectedStartMinutes >= 0 && selectedStartMinutes < currentLocalMinutes
 
     // ── Date picker ──────────────────────────────────────────────────────────
     if (showDatePicker) {
-        val todayUtc = run {
-            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-            cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        }
         val datePickerState = rememberDatePickerState(
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                    if (utcTimeMillis < todayUtc) return false
+                    if (utcTimeMillis < todayUtcStart) return false
                     if (availDays.isEmpty()) return true
                     return utcTimeMillis.toDayOfWeekShort() in availDays
                 }
@@ -310,6 +326,7 @@ fun BookingScreen(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
                         selectedDate = formatSelectedDateFromUtcMillis(millis)
+                        selectedDateUtcMillis = millis
                         selectedTimeStart = ""
                         selectedTimeRange = ""
                         timeError = ""
@@ -354,17 +371,23 @@ fun BookingScreen(
                         hourlySlots.chunked(2).forEach { rowSlots ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 rowSlots.forEach { slot ->
-                                    val booked = slot.startLabel in bookedStarts
+                                    val booked = slot.startLabel.trim().lowercase() in bookedStarts
+                                    val past = selectedIsToday && slot.startMinutes < currentLocalMinutes
+                                    val unavailable = booked || past
                                     val selected = selectedTimeStart == slot.startLabel
                                     SharedButton(
-                                        text = if (booked) "${slot.rangeLabel} (Booked)" else slot.rangeLabel,
+                                        text = when {
+                                            booked -> "${slot.rangeLabel} (Booked)"
+                                            past -> "${slot.rangeLabel} (Past)"
+                                            else -> slot.rangeLabel
+                                        },
                                         onClick = {
                                             selectedTimeStart = slot.startLabel
                                             selectedTimeRange = slot.rangeLabel
                                             timeError = ""
                                             showTimePicker = false
                                         },
-                                        enabled = !booked,
+                                        enabled = !unavailable,
                                         modifier = Modifier.weight(1f),
                                         variant = if (selected) SharedButtonVariant.Secondary else SharedButtonVariant.Outline,
                                     )
@@ -464,6 +487,12 @@ fun BookingScreen(
             if (timeError.isNotBlank()) {
                 SharedText(
                     text    = timeError,
+                    variant = SharedTextVariant.Caption,
+                    color   = MaterialTheme.colorScheme.error,
+                )
+            } else if (selectedTimeIsPast) {
+                SharedText(
+                    text    = "Selected time is in the past. Please choose a future slot.",
                     variant = SharedTextVariant.Caption,
                     color   = MaterialTheme.colorScheme.error,
                 )
@@ -584,7 +613,10 @@ fun BookingScreen(
                 )
             }
 
-            val canAddToCart = selectedDate.isNotBlank() && selectedTimeStart.isNotBlank() && !alreadyInCart
+            val canAddToCart = selectedDate.isNotBlank() &&
+                selectedTimeStart.isNotBlank() &&
+                !selectedTimeIsPast &&
+                !alreadyInCart
 
             SharedButton(
                 text    = if (alreadyInCart) "Added to cart" else "Add to Cart",

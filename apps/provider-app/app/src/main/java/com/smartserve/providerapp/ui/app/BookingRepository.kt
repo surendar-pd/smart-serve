@@ -2,6 +2,7 @@ package com.smartserve.providerapp.ui.app
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.smartserve.sharedauth.AuthCollections
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,33 @@ class BookingRepository @Inject constructor(
     private val categories get() = firestore.collection(AuthCollections.CATEGORIES)
     private val providerProfiles get() = firestore.collection(AuthCollections.PROVIDER_PROFILES)
 
+    private suspend fun syncProviderRatingSummary(providerId: String) {
+        runCatching {
+            val providerRef = providerProfiles.document(providerId)
+            val snap = bookings
+                .whereEqualTo("provider", providerRef)
+                .get().await()
+
+            val ratings = snap.documents.mapNotNull { doc ->
+                doc.getDouble("providerRating")
+                    ?: doc.getLong("providerRating")?.toDouble()
+            }.filter { it > 0.0 }
+
+            val avgRating = if (ratings.isNotEmpty()) ratings.average() else 5.0
+            val totalReviews = ratings.size
+
+            providerRef.set(
+                mapOf(
+                    "avgRating" to avgRating,
+                    "totalReviews" to totalReviews,
+                ),
+                SetOptions.merge(),
+            ).await()
+        }.onFailure {
+            android.util.Log.w("BookingRepo", "syncProviderRatingSummary failed: ${it.message}")
+        }
+    }
+
     // Real-time stream: new, pending, active requests for this provider
     fun getIncomingRequests(providerId: String): Flow<List<ServiceRequest>> = callbackFlow {
         val providerRef = providerProfiles.document(providerId)
@@ -42,6 +70,7 @@ class BookingRepository @Inject constructor(
                         .filter { it.status.value in allowed }
                         .sortedByDescending { it.createdAt?.seconds ?: 0L }
                     trySend(withCategoryLabels(withServiceTitles(withCustomerNames(parsed))))
+                    syncProviderRatingSummary(providerId)
                 }
             }
 
@@ -67,6 +96,7 @@ class BookingRepository @Inject constructor(
                         .filter { it.status.value in allowed }
                         .sortedByDescending { it.completedAt?.seconds ?: it.createdAt?.seconds ?: 0L }
                     trySend(withCategoryLabels(withServiceTitles(withCustomerNames(parsed))))
+                    syncProviderRatingSummary(providerId)
                 }
             }
 

@@ -80,8 +80,45 @@ private fun isRouteEnabledForMeeting(scheduledAt: Date?): Boolean {
     if (scheduledAt == null) return true
     val now = System.currentTimeMillis()
     val start = scheduledAt.time - ROUTE_WINDOW_MS
-    val end = scheduledAt.time
-    return now in start..end
+    return now >= start
+}
+
+private fun resolveMeetingDate(req: ServiceRequest): Date? {
+    val parsedFromDateAndTime = runCatching {
+        val dateText = req.date.trim()
+        if (dateText.isBlank()) return@runCatching null
+
+        val timeToken = req.time
+            .substringBefore("-")
+            .trim()
+            .ifBlank { return@runCatching null }
+
+        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).apply {
+            isLenient = false
+        }
+        val dateOnly = dateFormat.parse(dateText) ?: return@runCatching null
+
+        val timeFormat = SimpleDateFormat("h:mm a", Locale.US).apply {
+            isLenient = false
+        }
+        val parsedTime = timeFormat.parse(timeToken) ?: return@runCatching null
+
+        val dateCal = java.util.Calendar.getInstance().apply { time = dateOnly }
+        val timeCal = java.util.Calendar.getInstance().apply { time = parsedTime }
+        dateCal.set(java.util.Calendar.HOUR_OF_DAY, timeCal.get(java.util.Calendar.HOUR_OF_DAY))
+        dateCal.set(java.util.Calendar.MINUTE, timeCal.get(java.util.Calendar.MINUTE))
+        dateCal.set(java.util.Calendar.SECOND, 0)
+        dateCal.set(java.util.Calendar.MILLISECOND, 0)
+        dateCal.time
+    }.getOrNull()
+
+    return parsedFromDateAndTime ?: req.scheduledAt?.toDate()
+}
+
+private fun streetAddressOnly(address: String): String {
+    val value = address.trim()
+    if (value.isBlank()) return ""
+    return value.substringBefore(",").trim().ifBlank { value }
 }
 
 @Composable
@@ -147,12 +184,14 @@ fun ActiveJobScreen(
 
             else -> {
                 val req = state.request!!
-                val mapAddress = req.homeAddress
+                val fullAddress = req.homeAddress
                     .ifBlank { req.neighborhood }
                     .ifBlank { req.customerFirstName }
+                val streetAddress = streetAddressOnly(fullAddress)
                 val isComplete = req.status == RequestStatus.COMPLETED
-                val routeEnabled = isRouteEnabledForMeeting(req.scheduledAt?.toDate())
-                val routeHintText = routeWindowLabel(req.scheduledAt?.toDate())
+                val meetingDate = resolveMeetingDate(req)
+                val routeEnabled = isRouteEnabledForMeeting(meetingDate)
+                val routeHintText = routeWindowLabel(meetingDate)
                 var showCompleteSheet by remember { mutableStateOf(false) }
 
                 SharedBottomSheet(
@@ -249,14 +288,14 @@ fun ActiveJobScreen(
                             )
                             if (!isComplete) {
                                 SharedText(
-                                    text    = "Destination: ${mapAddress.ifBlank { "N/A" }}",
+                                    text    = "Street: ${streetAddress.ifBlank { "N/A" }}",
                                     variant = SharedTextVariant.Caption,
                                 )
                             }
                         }
                     }
 
-                    if (req.specialInstructions.isNotBlank()) {
+                    if (!isComplete && req.specialInstructions.isNotBlank()) {
                         Spacer(Modifier.height(12.dp))
                         SharedText(text = "Special Instructions", variant = SharedTextVariant.Subtitle)
                         Spacer(Modifier.height(4.dp))
@@ -322,7 +361,7 @@ fun ActiveJobScreen(
                                     // Customer marker
                                     map.overlays.add(Marker(map).apply {
                                         position = customerGeoPoint
-                                        title = mapAddress.ifBlank { "Customer Location" }
+                                        title = streetAddress.ifBlank { "Customer Location" }
                                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     })
 
@@ -346,16 +385,16 @@ fun ActiveJobScreen(
                                             return@clickable
                                         }
 
-                                        val destinationLabel = mapAddress.ifBlank { "Customer" }
+                                        val destinationLabel = streetAddress.ifBlank { "Customer" }
                                         if (req.customerLat != 0.0 && req.customerLng != 0.0) {
                                             onNavigateToMap(
                                                 req.customerLat,
                                                 req.customerLng,
                                                 destinationLabel,
                                             )
-                                        } else if (mapAddress.isNotBlank()) {
+                                        } else if (streetAddress.isNotBlank()) {
                                             // Use in-app OSM map screen; ViewModel handles address geocoding when coordinates are not available.
-                                            onNavigateToMap(0.0, 0.0, mapAddress)
+                                            onNavigateToMap(0.0, 0.0, streetAddress)
                                         } else {
                                             snackbarScope.launch {
                                                 snackbarHostState.showSnackbar("No destination available")
@@ -391,12 +430,6 @@ fun ActiveJobScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                    } else {
-                        SharedText(
-                            text = "Customer location is hidden after completion for security.",
-                            variant = SharedTextVariant.Caption,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
 
                     Spacer(Modifier.height(20.dp))

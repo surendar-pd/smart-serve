@@ -141,7 +141,7 @@ fun BookingsScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             items(completed, key = { it.id }) { booking ->
-                                PastBookingCard(
+                                CompletedBookingCard(
                                     booking = booking,
                                     onClick = { onNavigateToRequestDetail(booking.id) },
                                 )
@@ -180,6 +180,73 @@ private fun PastBookingCard(
                     variant = SharedTextVariant.Caption,
                     color   = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompletedBookingCard(
+    booking: ServiceRequest,
+    onClick: (() -> Unit)? = null,
+) {
+    SharedCard(onClick = onClick ?: {}) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            SharedAvatar(
+                name = booking.customerFirstName.ifBlank { booking.customerInitials },
+                size = 44.dp,
+            )
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        SharedText(
+                            text = booking.customerFirstName.ifBlank { "Customer" },
+                            variant = SharedTextVariant.BodyStrong,
+                        )
+                        SharedText(
+                            text = booking.serviceType.ifBlank { booking.categoryLabel.ifBlank { "Service" } },
+                            variant = SharedTextVariant.Body,
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        SharedText(
+                            text = "$${booking.earnings}",
+                            variant = SharedTextVariant.BodyStrong,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        SharedText(
+                            text = "Completed",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                SharedText(
+                    text = "${booking.date} · ${booking.time}",
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                if (booking.customerRating != null) {
+                    Spacer(Modifier.height(4.dp))
+                    SharedText(
+                        text = "Your rating: ${booking.customerRating}",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
