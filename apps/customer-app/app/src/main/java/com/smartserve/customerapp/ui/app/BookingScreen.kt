@@ -101,6 +101,13 @@ private fun formatSelectedDateFromUtcMillis(utcMillis: Long): String {
     return formatter.format(Date(utcMillis))
 }
 
+private fun parseUiDateToMillis(dateStr: String): Long? {
+    if (dateStr.isBlank()) return null
+    return runCatching {
+        SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()).parse(dateStr)?.time
+    }.getOrNull()
+}
+
 private fun currentUtcDayStartMillis(): Long {
     val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
     cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -239,6 +246,7 @@ fun BookingScreen(
     service: CustomerServiceListing,
     cartItems: List<CartItem> = emptyList(),
     categoryId: String = "",
+    prefillItem: CartItem? = null,
     onBack: () -> Unit,
     onAddToCart: (CartItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -263,18 +271,28 @@ fun BookingScreen(
     val hasValidWindow = endMinutes > startMinutes
     val windowLabel  = "${formatTime(startHour, startMinute)} – ${formatTime(endHour, endMinute)}"
 
-    var selectedDate    by remember { mutableStateOf("") }
-    var selectedDateUtcMillis by remember { mutableStateOf<Long?>(null) }
-    var selectedTimeStart by remember { mutableStateOf("") }
-    var selectedTimeRange by remember { mutableStateOf("") }
+    var selectedDate    by remember(prefillItem?.lineDocumentId) { mutableStateOf(prefillItem?.date.orEmpty()) }
+    var selectedDateUtcMillis by remember(prefillItem?.lineDocumentId) {
+        mutableStateOf(parseUiDateToMillis(prefillItem?.date.orEmpty()))
+    }
+    var selectedTimeStart by remember(prefillItem?.lineDocumentId) { mutableStateOf(prefillItem?.time.orEmpty()) }
+    var selectedTimeRange by remember(prefillItem?.lineDocumentId) { mutableStateOf(prefillItem?.timeRange.orEmpty()) }
     var timeError       by remember { mutableStateOf("") }
-    var addressQuery    by remember { mutableStateOf("") }
-    var notes           by remember { mutableStateOf("") }
+    var addressQuery    by remember(prefillItem?.lineDocumentId) { mutableStateOf(prefillItem?.address.orEmpty()) }
+    var notes           by remember(prefillItem?.lineDocumentId) { mutableStateOf(prefillItem?.specialInstructions.orEmpty()) }
     var showDatePicker  by remember { mutableStateOf(false) }
     var showTimePicker  by remember { mutableStateOf(false) }
 
     val alreadyInCart = remember(cartItems, service.serviceId, service.providerUid) {
         cartItems.any { it.serviceId == service.serviceId && it.providerUid == service.providerUid }
+    }
+    val editingLineId = prefillItem?.lineDocumentId
+    val duplicateInCart = remember(cartItems, service.serviceId, service.providerUid, editingLineId) {
+        cartItems.any { existing ->
+            existing.providerUid == service.providerUid &&
+                existing.serviceId == service.serviceId &&
+                existing.lineDocumentId != editingLineId
+        }
     }
 
     // Pre-fill search field from saved profile address once it loads
@@ -616,13 +634,14 @@ fun BookingScreen(
             val canAddToCart = selectedDate.isNotBlank() &&
                 selectedTimeStart.isNotBlank() &&
                 !selectedTimeIsPast &&
-                !alreadyInCart
+                        !duplicateInCart
 
             SharedButton(
-                text    = if (alreadyInCart) "Added to cart" else "Add to Cart",
+                text    = if (prefillItem != null) "Save Changes" else if (duplicateInCart) "Added to cart" else "Add to Cart",
                 onClick = {
                     onAddToCart(
                         CartItem(
+                            lineDocumentId = prefillItem?.lineDocumentId,
                             providerUid  = service.providerUid,
                             serviceId    = service.serviceId,
                             categoryId   = categoryId,
@@ -643,7 +662,7 @@ fun BookingScreen(
                 enabled = canAddToCart,
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (alreadyInCart) {
+            if (duplicateInCart) {
                 SharedText(
                     text = "This service is already in your cart",
                     variant = SharedTextVariant.Caption,

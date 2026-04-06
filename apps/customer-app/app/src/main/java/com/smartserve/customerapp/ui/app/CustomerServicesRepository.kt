@@ -6,6 +6,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.SetOptions
 import com.smartserve.sharedauth.AuthCollections
 import kotlinx.coroutines.channels.awaitClose
@@ -38,6 +39,9 @@ class CustomerServicesRepository @Inject constructor(
 
     private fun cartItemsCollection(customerUid: String) =
         customerProfiles.document(customerUid).collection(AuthCollections.CUSTOMER_CART_ITEMS)
+
+    private fun favoriteProfileDocument(customerUid: String) =
+        customerProfiles.document(customerUid)
 
     private suspend fun providerRatingFromProfile(providerUid: String): Pair<Double, Int> {
         return runCatching {
@@ -113,6 +117,12 @@ class CustomerServicesRepository @Inject constructor(
         cartItemsCollection(uid).document(lineDocumentId).delete().await()
     }
 
+    suspend fun updateCartLine(lineDocumentId: String, item: CartItem): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        cartItemsCollection(uid).document(lineDocumentId).set(cartLinePayload(item)).await()
+        Unit
+    }
+
     suspend fun clearCustomerCart(): Result<Unit> = runCatching {
         val uid = auth.currentUser?.uid ?: return@runCatching
         val snap = cartItemsCollection(uid).get().await()
@@ -129,6 +139,120 @@ class CustomerServicesRepository @Inject constructor(
             }
         }
         if (n > 0) batch.commit().await()
+    }
+
+    /** Live set of favorited service IDs for the current customer. */
+    fun observeFavoriteServiceIds(): Flow<Set<String>> = callbackFlow {
+        var reg: ListenerRegistration? = null
+
+        fun attach(uid: String?) {
+            reg?.remove()
+            reg = null
+            if (uid.isNullOrBlank()) {
+                trySend(emptySet())
+                return
+            }
+
+            reg = favoriteProfileDocument(uid)
+                .addSnapshotListener { snap, err ->
+                    if (err != null) {
+                        Log.e(TAG, "observeFavoriteServiceIds listener error", err)
+                        trySend(emptySet())
+                        return@addSnapshotListener
+                    }
+                    val ids = snap
+                        ?.get("favoriteServiceIds") as? List<*>
+                    val parsed = ids
+                        ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+                        ?.toSet()
+                        .orEmpty()
+                    trySend(parsed)
+                }
+        }
+
+        attach(auth.currentUser?.uid)
+        val listener = FirebaseAuth.AuthStateListener { attach(it.currentUser?.uid) }
+        auth.addAuthStateListener(listener)
+        awaitClose {
+            auth.removeAuthStateListener(listener)
+            reg?.remove()
+        }
+    }.distinctUntilChanged()
+
+    suspend fun getFavoriteServiceIds(): Set<String> = runCatching {
+        val uid = auth.currentUser?.uid ?: return@runCatching emptySet()
+        val doc = favoriteProfileDocument(uid).get().await()
+        val ids = doc.get("favoriteServiceIds") as? List<*>
+        ids?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }?.toSet().orEmpty()
+    }.getOrDefault(emptySet())
+
+    suspend fun upsertFavoriteService(service: CustomerServiceListing): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        favoriteProfileDocument(uid)
+            .set(
+                mapOf(
+                    "favoriteServiceIds" to FieldValue.arrayUnion(service.serviceId),
+                    "favoriteServicesUpdatedAt" to Timestamp.now(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        Unit
+    }
+
+    suspend fun removeFavoriteService(serviceId: String): Result<Unit> = runCatching {
+        val uid = auth.currentUser?.uid ?: error("Customer not signed in")
+        favoriteProfileDocument(uid)
+            .set(
+                mapOf(
+                    "favoriteServiceIds" to FieldValue.arrayRemove(serviceId),
+                    "favoriteServicesUpdatedAt" to Timestamp.now(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        Unit
+    }
+
+    suspend fun getFavoriteServices(limit: Int = 10): List<CustomerServiceListing> = runCatching {
+        val uid = auth.currentUser?.uid ?: return@runCatching emptyList()
+        val favoriteIds = getFavoriteServiceIds().take(limit.coerceAtLeast(1)).toList()
+        if (favoriteIds.isEmpty()) return@runCatching emptyList()
+
+        val allServices = services.get().await().documents
+        val byId = allServices.associateBy { it.id }
+
+        favoriteIds.mapNotNull { serviceId ->
+            val doc = byId[serviceId] ?: return@mapNotNull null
+            val providerUid = extractProviderId(doc).orEmpty()
+            val providerName = runCatching {
+                profiles.document(providerUid).get().await().getString("displayName").orEmpty()
+            }.getOrDefault("")
+
+            CustomerServiceListing(
+                serviceId = doc.id,
+                title = doc.getString("title").orEmpty(),
+                description = doc.getString("description").orEmpty(),
+                hourlyRate = doc.getDouble("hourlyRate")
+                    ?: doc.getLong("hourlyRate")?.toDouble() ?: 0.0,
+                providerUid = providerUid,
+                providerName = providerName,
+                availabilityDays = (doc.get("availabilityDays") as? List<*>)
+                    ?.mapNotNull { it?.toString() } ?: emptyList(),
+                availabilityStart = doc.getString("availabilityStart") ?: "09:00",
+                availabilityEnd = doc.getString("availabilityEnd") ?: "18:00",
+                providerAvgRating = doc.getDouble("providerAvgRating")
+                    ?: doc.getLong("providerAvgRating")?.toDouble() ?: 0.0,
+                providerTotalReviews = doc.getLong("providerTotalReviews")?.toInt() ?: 0,
+                photoUrls = (doc.get("photoUrls") as? List<*>)
+                    ?.mapNotNull { it?.toString() }
+                    ?.filter { it.isNotBlank() }
+                    ?: emptyList(),
+            )
+        }.take(limit.coerceAtLeast(1))
+    }.getOrElse {
+        Log.e(TAG, "getFavoriteServices failed", it)
+        emptyList()
     }
 
     /** In-memory cache so BookingViewModel reacts instantly when profile saves a new address. */
@@ -458,54 +582,14 @@ class CustomerServicesRepository @Inject constructor(
         val customerId = auth.currentUser?.uid
             ?: error("Customer not signed in")
 
-        // Guard against stale UI: re-check each provider slot before writing bookings.
-        items.forEach { item ->
-            if (isProviderSlotBlocked(item.providerUid, item.date, item.time)) {
-                error("Selected time slot is no longer available for this provider")
-            }
-        }
-
         val batch = firestore.batch()
         val customerRef = customerProfiles.document(customerId)
         items.forEach { item ->
-            val docId = bookingDocumentId(customerId, item)
-            val doc = bookings.document(docId)
+            val doc = bookings.document()
             val payload = buildBookingPayload(customerId, customerRef, item)
             batch.set(doc, payload)
         }
         batch.commit().await()
-    }
-
-    private suspend fun isProviderSlotBlocked(
-        providerUid: String,
-        dateLabel: String,
-        slotStart: String,
-    ): Boolean {
-        if (providerUid.isBlank() || dateLabel.isBlank() || slotStart.isBlank()) return false
-
-        val allowedStatuses = setOf("pending", "active", "confirmed")
-        val normalizedStart = normalizeSlotStartLabel(slotStart)
-
-        // Read broadly to support both current and legacy booking field shapes.
-        val snap = bookings.get().await()
-        return snap.documents.any { doc ->
-            val status = doc.getString("status")?.lowercase()?.trim().orEmpty()
-            if (status !in allowedStatuses) return@any false
-
-            val docProviderId = extractProviderId(doc)
-                ?: normalizeRefId(doc.getString("provider"))
-                ?: normalizeRefId(doc.getString("providerId"))
-                ?: normalizeRefId(doc.getString("providerUid"))
-                ?: ""
-            if (docProviderId != providerUid) return@any false
-
-            val docDate = extractBookingDateLabel(doc)
-            if (docDate != dateLabel) return@any false
-
-            val docStart = extractBookingStartLabel(doc)
-
-            docStart == normalizedStart
-        }
     }
 
     private fun buildBookingPayload(
@@ -538,13 +622,6 @@ class CustomerServicesRepository @Inject constructor(
             m["category"] = categories.document(item.categoryId)
         }
         return m
-    }
-
-    private fun bookingDocumentId(customerId: String, item: CartItem): String {
-        // Simple deterministic id so we don't create duplicate bookings.
-        // (Firestore doc ids can't contain '/')
-        val raw = "${customerId}_${item.providerUid}_${item.serviceId}_${item.date}_${item.time}"
-        return raw.replace("/", "_")
     }
 
     private fun cartLinePayload(item: CartItem): HashMap<String, Any> {
@@ -763,42 +840,19 @@ class CustomerServicesRepository @Inject constructor(
         Log.d(TAG, "rateProvider uid=${uid.take(6)}… id=$bookingId rating=$rating")
         val bookingRef = bookings.document(bookingId)
         val bookingSnap = bookingRef.get().await()
-        val providerId = bookingSnap.getDocumentReference("provider")?.id
-            ?: error("Booking missing provider reference")
+        val customerRef = bookingSnap.getDocumentReference("customer")?.id
+        val isOwner = customerRef == uid
+            || bookingSnap.getString("customerId") == uid
+            || bookingSnap.getString("customerUid") == uid
+            || bookingSnap.getString("customer") == uid
+        check(isOwner) { "Booking does not belong to current customer" }
 
-        val providerRatingRef = profiles.document(providerId)
-            .collection("ratings")
-            .document(bookingId)
-
-        val batch = firestore.batch()
-        batch.update(bookingRef, "providerRating", rating.toDouble())
-        batch.set(
-            providerRatingRef,
+        bookingRef.update(
             mapOf(
-                "bookingId" to bookingId,
-                "providerId" to providerId,
-                "customerId" to uid,
-                "rating" to rating.toDouble(),
-                "updatedAt" to Timestamp.now(),
+                "providerRating" to rating.toDouble(),
+                "providerRatingUpdatedAt" to Timestamp.now(),
             ),
-            SetOptions.merge(),
-        )
-        batch.commit().await()
-
-        // Recompute avgRating + totalReviews on provider_profiles/{providerId}
-        val ratingsSnap = profiles.document(providerId).collection("ratings").get().await()
-        val allRatings = ratingsSnap.documents
-            .mapNotNull { it.getDouble("rating") ?: it.getLong("rating")?.toDouble() }
-            .filter { it in 1.0..5.0 }
-        if (allRatings.isNotEmpty()) {
-            profiles.document(providerId).update(
-                mapOf(
-                    "avgRating" to allRatings.average(),
-                    "totalReviews" to allRatings.size,
-                )
-            ).await()
-            Log.d(TAG, "rateProvider synced avgRating=${allRatings.average()} totalReviews=${allRatings.size} for provider=$providerId")
-        }
+        ).await()
         Unit
     }
 }

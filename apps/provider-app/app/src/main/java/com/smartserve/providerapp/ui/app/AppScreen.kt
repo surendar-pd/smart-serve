@@ -125,6 +125,19 @@ fun AppScreen(onLogout: () -> Unit) {
                         selectedTabIndex = 0
                         homeStack = HomeStack.RequestDetail(bookingId)
                     },
+                    onNavigateToActiveJob = { bookingId ->
+                        selectedTabIndex = 0
+                        homeStack = HomeStack.ActiveJob(bookingId)
+                    },
+                    onNavigateToMap = { lat, lng, address ->
+                        selectedTabIndex = 0
+                        homeStack = HomeStack.Navigation(
+                            customerLat = lat,
+                            customerLng = lng,
+                            customerAddress = address,
+                            returnTo = HomeStack.Home,
+                        )
+                    },
                 )
                 2 -> when (val stack = profileStack) {
                     is ProfileStack.Main -> ProfileScreen(

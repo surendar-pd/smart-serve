@@ -274,6 +274,31 @@ fun ProfileScreen(
                 onClick = onOpenComingSoon,
             )
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            SharedText(
+                text = "Your favorites",
+                variant = SharedTextVariant.Title,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (state.favoriteServices.isEmpty()) {
+                SharedText(
+                    text = "No favorites yet. Tap hearts on services you love.",
+                    variant = SharedTextVariant.Body,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                state.favoriteServices.take(5).forEach { service ->
+                    SharedListItem(
+                        title = service.title,
+                        supportingText = "${service.providerName} • $${service.hourlyRate.toInt()}/hr",
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(28.dp))
 
             SharedButton(

@@ -110,18 +110,32 @@ class BookingRepository @Inject constructor(
 
         val names = mutableMapOf<String, String>()
         val profilesHomeAddresses = mutableMapOf<String, String>()
+        val customerPhones = mutableMapOf<String, String>()
 
         ids.forEach { customerId ->
             runCatching {
                 val doc = customerProfiles.document(customerId).get().await()
 
                 val profileName = doc.getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
+                doc.getString("phone")?.trim()?.takeIf { it.isNotBlank() }?.let { phone ->
+                    customerPhones[customerId] = phone
+                }
+                doc.getString("phoneNumber")?.trim()?.takeIf { it.isNotBlank() }?.let { phone ->
+                    customerPhones[customerId] = phone
+                }
                 if (!profileName.isNullOrBlank()) {
                     names[customerId] = profileName
                 } else {
                     val userDoc = users.document(customerId).get().await()
                     val userName = userDoc.getString("displayName")?.trim()?.takeIf { it.isNotBlank() }
                     if (!userName.isNullOrBlank()) names[customerId] = userName
+
+                    userDoc.getString("phone")?.trim()?.takeIf { it.isNotBlank() }?.let { phone ->
+                        customerPhones[customerId] = phone
+                    }
+                    userDoc.getString("phoneNumber")?.trim()?.takeIf { it.isNotBlank() }?.let { phone ->
+                        customerPhones[customerId] = phone
+                    }
                 }
 
                 doc.getString("homeAddress")?.trim()?.takeIf { it.isNotBlank() }?.let { addr ->
@@ -132,6 +146,7 @@ class BookingRepository @Inject constructor(
 
         return requests.map { request ->
             val resolved = names[request.customerId]
+            val phone = customerPhones[request.customerId].orEmpty()
             val profileHomeAddress = profilesHomeAddresses[request.customerId]
             val homeAddressResolved = request.homeAddress.takeIf { it.isNotBlank() }
                 ?: profileHomeAddress.orEmpty()
@@ -139,6 +154,7 @@ class BookingRepository @Inject constructor(
                 ?: profileHomeAddress.orEmpty()
 
             var enriched = request.copy(
+                customerPhone = phone,
                 homeAddress = homeAddressResolved,
                 neighborhood = neighborhoodResolved,
             )
