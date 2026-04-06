@@ -38,6 +38,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.Surface
 import com.smartserve.sharedauth.AddressValidState
@@ -57,6 +59,8 @@ fun ProfileScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onOpenPrivacyData: () -> Unit = {},
+    onOpenComingSoon: () -> Unit = {},
+    onOpenPersonalizationInfo: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -254,6 +258,20 @@ fun ProfileScreen(
                 leadingIcon = Icons.Filled.PrivacyTip,
                 supportingText = "Read the C-SmartService privacy and data template.",
                 onClick = onOpenPrivacyData,
+            )
+
+            SharedListItem(
+                title = "How My Feed Works",
+                leadingIcon = Icons.Filled.Insights,
+                supportingText = "See the context signals ranking your home screen right now.",
+                onClick = onOpenPersonalizationInfo,
+            )
+
+            SharedListItem(
+                title = "What's Coming",
+                leadingIcon = Icons.Filled.AutoAwesome,
+                supportingText = "See planned features and future roadmap.",
+                onClick = onOpenComingSoon,
             )
 
             Spacer(modifier = Modifier.height(28.dp))

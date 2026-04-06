@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,6 +31,8 @@ import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,6 +48,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.firebase.auth.FirebaseAuth
+import com.smartserve.sharedui.SharedBadge
+import com.smartserve.sharedui.SharedBadgeVariant
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedIconButton
 import com.smartserve.sharedui.SharedLoading
@@ -60,6 +69,39 @@ private fun categoryIconForLabel(label: String): ImageVector =
         else        -> Icons.Filled.Build
     }
 
+private fun badgeLabel(badge: CategoryBadge): String = when (badge) {
+    CategoryBadge.TOP_PICK        -> "Top Pick"
+    CategoryBadge.FREQUENTLY_USED -> "Your Fave"
+    CategoryBadge.MORNING_PICK    -> "Morning Pick"
+    CategoryBadge.AFTERNOON_PICK  -> "Afternoon Pick"
+    CategoryBadge.EVENING_PICK    -> "Evening Pick"
+    CategoryBadge.WEEKEND_PICK    -> "Weekend Pick"
+    CategoryBadge.SEASONAL_PICK   -> "Seasonal"
+    CategoryBadge.POPULAR         -> "Popular"
+}
+
+private fun badgeVariant(badge: CategoryBadge): SharedBadgeVariant = when (badge) {
+    CategoryBadge.TOP_PICK        -> SharedBadgeVariant.Warning
+    CategoryBadge.FREQUENTLY_USED -> SharedBadgeVariant.Success
+    CategoryBadge.MORNING_PICK    -> SharedBadgeVariant.Info
+    CategoryBadge.AFTERNOON_PICK  -> SharedBadgeVariant.Info
+    CategoryBadge.EVENING_PICK    -> SharedBadgeVariant.Info
+    CategoryBadge.WEEKEND_PICK    -> SharedBadgeVariant.Success
+    CategoryBadge.SEASONAL_PICK   -> SharedBadgeVariant.Success
+    CategoryBadge.POPULAR         -> SharedBadgeVariant.Neutral
+}
+
+private fun greetingText(timeContext: TimeContext): Pair<String, String> {
+    val name = greetingDisplayName()
+    return when (timeContext) {
+        TimeContext.MORNING   -> "Good morning, $name" to "Ready to get things done today?"
+        TimeContext.AFTERNOON -> "Good afternoon, $name" to "What can we help with today?"
+        TimeContext.EVENING   -> "Good evening, $name" to "Let's take care of something tonight."
+        TimeContext.NIGHT     -> "Hi, $name" to "Looking for help? We've got you covered."
+        TimeContext.WEEKEND   -> "Happy weekend, $name" to "A great day to get things sorted!"
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
@@ -67,10 +109,11 @@ fun HomeScreen(
     onNavigateToCategory: (categoryId: String, categoryLabel: String) -> Unit = { _, _ -> },
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToProvider: (providerUid: String, providerName: String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val greetingName = greetingDisplayName()
+    val (greetingTitle, greetingSubtitle) = greetingText(state.timeContext)
 
     Column(
         modifier = modifier
@@ -79,8 +122,8 @@ fun HomeScreen(
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
     ) {
         CustomerTabHeader(
-            title = "Hello, $greetingName",
-            subtitle = "What are you looking for today?",
+            title = greetingTitle,
+            subtitle = greetingSubtitle,
             trailing = {
                 SharedIconButton(
                     onClick = onNavigateToProfile,
@@ -134,13 +177,44 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 maxItemsInEachRow = 3,
             ) {
-                state.categories.forEach { category ->
-                    CategoryCard(
-                        label = category.label,
-                        icon = categoryIconForLabel(category.label),
-                        onClick = { onNavigateToCategory(category.id, category.label) },
+                state.scoredCategories.forEach { scored ->
+                    ScoredCategoryCard(
+                        scored = scored,
+                        onClick = {
+                            viewModel.onCategoryTapped(scored.category.id)
+                            onNavigateToCategory(scored.category.id, scored.category.label)
+                        },
                         modifier = Modifier.weight(1f),
                     )
+                }
+            }
+
+            // ── Smart Picks ───────────────────────────────────────────────────
+            if (state.smartPicks.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(28.dp))
+
+                SharedText(text = "Smart Picks", variant = SharedTextVariant.Title)
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                SharedText(
+                    text = "Providers chosen for you",
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(end = 8.dp),
+                ) {
+                    items(state.smartPicks, key = { it.uid }) { pick ->
+                        SmartPickCard(
+                            pick = pick,
+                            onClick = { onNavigateToProvider(pick.uid, pick.name) },
+                        )
+                    }
                 }
             }
         }
@@ -149,37 +223,151 @@ fun HomeScreen(
     }
 }
 
+// ── Scored category card ───────────────────────────────────────────────────────
+
 @Composable
-private fun CategoryCard(
-    label: String,
-    icon: ImageVector,
+private fun ScoredCategoryCard(
+    scored: ScoredCategory,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SharedCard(
-        onClick = onClick,
-        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 8.dp),
-        modifier = modifier.height(110.dp),
-    ) {
-        Column(
+    val colorScheme = MaterialTheme.colorScheme
+    val cardColors = when {
+        scored.badge == CategoryBadge.TOP_PICK ->
+            CardDefaults.cardColors(containerColor = colorScheme.primaryContainer)
+        scored.badge != null && scored.badge != CategoryBadge.POPULAR ->
+            CardDefaults.cardColors(containerColor = colorScheme.secondaryContainer)
+        else ->
+            CardDefaults.cardColors()
+    }
+    val iconTint = when {
+        scored.badge == CategoryBadge.TOP_PICK    -> colorScheme.onPrimaryContainer
+        scored.badge != null                       -> colorScheme.onSecondaryContainer
+        else                                       -> colorScheme.primary
+    }
+
+    Box(modifier = modifier.height(110.dp)) {
+        SharedCard(
+            onClick = onClick,
+            contentPadding = PaddingValues(vertical = 16.dp, horizontal = 8.dp),
             modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            colors = cardColors,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary,
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    imageVector = categoryIconForLabel(scored.category.label),
+                    contentDescription = scored.category.label,
+                    modifier = Modifier.size(32.dp),
+                    tint = iconTint,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = scored.category.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // Badge overlay at top-end
+        if (scored.badge != null) {
+            SharedBadge(
+                text = badgeLabel(scored.badge),
+                variant = badgeVariant(scored.badge),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp),
+                textStyle = MaterialTheme.typography.labelSmall,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(3.dp)
+                    .wrapContentSize(),
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+        }
+    }
+}
+
+// ── Smart pick card ────────────────────────────────────────────────────────────
+
+@Composable
+private fun SmartPickCard(
+    pick: SmartPickProvider,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.width(160.dp)) {
+        SharedCard(
+            onClick = onClick,
+            contentPadding = PaddingValues(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
                 modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = pick.name.ifBlank { "Provider" },
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (pick.primaryServiceTitle.isNotBlank()) {
+                    Text(
+                        text = pick.primaryServiceTitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (pick.avgRating > 0 && pick.totalReviews > 0) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        SharedText(
+                            text = "${"%.1f".format(pick.avgRating)} (${pick.totalReviews})",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    SharedText(
+                        text = "New",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        // "Booked before" badge — bottom-end so it never overlaps the provider name
+        if (pick.bookedBefore) {
+            SharedBadge(
+                text = "Booked before",
+                variant = SharedBadgeVariant.Success,
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp),
+                textStyle = MaterialTheme.typography.labelSmall,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(3.dp)
+                    .wrapContentSize(),
             )
         }
     }

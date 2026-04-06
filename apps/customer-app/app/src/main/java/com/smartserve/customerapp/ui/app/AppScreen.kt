@@ -45,8 +45,10 @@ fun AppScreen(
     var selectedProviderUid   by remember { mutableStateOf("") }
     var selectedProviderName  by remember { mutableStateOf("") }
     var selectedService       by remember { mutableStateOf<CustomerServiceListing?>(null) }
-    var showProfile           by remember { mutableStateOf(false) }
-    var showPrivacyData       by remember { mutableStateOf(false) }
+    var showProfile              by remember { mutableStateOf(false) }
+    var showPrivacyData          by remember { mutableStateOf(false) }
+    var showComingSoon           by remember { mutableStateOf(false) }
+    var showPersonalizationInfo  by remember { mutableStateOf(false) }
 
     // ── Search tab navigation stack ──────────────────────────────────────────
     var searchProviderUid    by remember { mutableStateOf("") }
@@ -71,8 +73,10 @@ fun AppScreen(
         selectedProviderName  = ""
         selectedCategoryId    = ""
         selectedCategoryLabel = ""
-        showProfile           = false
-        showPrivacyData       = false
+        showProfile              = false
+        showPrivacyData          = false
+        showComingSoon           = false
+        showPersonalizationInfo  = false
     }
 
     fun clearSearchStack() {
@@ -135,10 +139,26 @@ fun AppScreen(
                             showProfile = false
                             showPrivacyData = true
                         },
+                        onOpenComingSoon = {
+                            showProfile = false
+                            showComingSoon = true
+                        },
+                        onOpenPersonalizationInfo = {
+                            showProfile = false
+                            showPersonalizationInfo = true
+                        },
                     )
                     showPrivacyData -> PrivacyDataScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         onBack = { showPrivacyData = false },
+                    )
+                    showComingSoon -> ComingSoonScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { showComingSoon = false },
+                    )
+                    showPersonalizationInfo -> PersonalizationInfoScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onBack = { showPersonalizationInfo = false },
                     )
                     else -> HomeScreen(
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -148,6 +168,10 @@ fun AppScreen(
                         },
                         onNavigateToProfile = { showProfile = true },
                         onNavigateToSearch  = { selectedTabIndex = 1 },
+                        onNavigateToProvider = { uid, name ->
+                            selectedProviderUid  = uid
+                            selectedProviderName = name
+                        },
                     )
                 }
 
