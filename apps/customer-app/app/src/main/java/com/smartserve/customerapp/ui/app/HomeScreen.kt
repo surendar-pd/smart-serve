@@ -76,6 +76,7 @@ private fun badgeLabel(badge: CategoryBadge): String = when (badge) {
     CategoryBadge.AFTERNOON_PICK  -> "Afternoon Pick"
     CategoryBadge.EVENING_PICK    -> "Evening Pick"
     CategoryBadge.WEEKEND_PICK    -> "Weekend Pick"
+    CategoryBadge.SEASONAL_PICK   -> "Seasonal"
     CategoryBadge.POPULAR         -> "Popular"
 }
 
@@ -86,6 +87,7 @@ private fun badgeVariant(badge: CategoryBadge): SharedBadgeVariant = when (badge
     CategoryBadge.AFTERNOON_PICK  -> SharedBadgeVariant.Info
     CategoryBadge.EVENING_PICK    -> SharedBadgeVariant.Info
     CategoryBadge.WEEKEND_PICK    -> SharedBadgeVariant.Success
+    CategoryBadge.SEASONAL_PICK   -> SharedBadgeVariant.Success
     CategoryBadge.POPULAR         -> SharedBadgeVariant.Neutral
 }
 
