@@ -1,5 +1,7 @@
 package com.smartserve.providerapp.ui.app
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,9 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.smartserve.sharedui.SharedButton
+import com.smartserve.sharedui.SharedButtonVariant
 import com.smartserve.sharedui.SharedAvatar
 import com.smartserve.sharedui.SharedCard
 import com.smartserve.sharedui.SharedEmptyState
@@ -32,15 +37,77 @@ import com.smartserve.sharedui.SharedTabs
 import com.smartserve.sharedui.SharedText
 import com.smartserve.sharedui.SharedTextVariant
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val tabTitles = listOf("Pending", "Active", "Completed")
+private const val ROUTE_WINDOW_MS = 3L * 60L * 60L * 1000L
+
+private fun routeWindowLabel(scheduledAt: Date?): String {
+    if (scheduledAt == null) return ""
+    val formatter = SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault())
+    val unlockAt = Date(scheduledAt.time - ROUTE_WINDOW_MS)
+    return "Directions unlock at ${formatter.format(unlockAt)} (3 hours before meeting)."
+}
+
+private fun isRouteEnabledForMeeting(scheduledAt: Date?): Boolean {
+    if (scheduledAt == null) return true
+    val now = System.currentTimeMillis()
+    val start = scheduledAt.time - ROUTE_WINDOW_MS
+    return now >= start
+}
+
+private fun resolveMeetingDate(req: ServiceRequest): Date? {
+    val parsedFromDateAndTime = runCatching {
+        val dateText = req.date.trim()
+        if (dateText.isBlank()) return@runCatching null
+
+        val timeToken = req.time
+            .substringBefore("-")
+            .trim()
+            .ifBlank { return@runCatching null }
+
+        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).apply {
+            isLenient = false
+        }
+        val dateOnly = dateFormat.parse(dateText) ?: return@runCatching null
+
+        val timeFormat = SimpleDateFormat("h:mm a", Locale.US).apply {
+            isLenient = false
+        }
+        val parsedTime = timeFormat.parse(timeToken) ?: return@runCatching null
+
+        val dateCal = java.util.Calendar.getInstance().apply { time = dateOnly }
+        val timeCal = java.util.Calendar.getInstance().apply { time = parsedTime }
+        dateCal.set(java.util.Calendar.HOUR_OF_DAY, timeCal.get(java.util.Calendar.HOUR_OF_DAY))
+        dateCal.set(java.util.Calendar.MINUTE, timeCal.get(java.util.Calendar.MINUTE))
+        dateCal.set(java.util.Calendar.SECOND, 0)
+        dateCal.set(java.util.Calendar.MILLISECOND, 0)
+        dateCal.time
+    }.getOrNull()
+
+    return parsedFromDateAndTime ?: req.scheduledAt?.toDate()
+}
+
+private fun streetAddressOnly(address: String): String {
+    val value = address.trim()
+    if (value.isBlank()) return ""
+    return value.substringBefore(",").trim().ifBlank { value }
+}
 
 @Composable
 fun BookingsScreen(
     modifier: Modifier = Modifier,
     onNavigateToRequestDetail: (String) -> Unit = {},
+    onNavigateToActiveJob: (String) -> Unit = {},
+    onNavigateToMap: (lat: Double, lng: Double, address: String) -> Unit = { _, _, _ -> },
     viewModel: BookingsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -103,9 +170,28 @@ fun BookingsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(active, key = { it.id }) { booking ->
-                            PastBookingCard(
+                            ActiveBookingCard(
                                 booking = booking,
-                                onClick = { onNavigateToRequestDetail(booking.id) },
+                                onClick = { onNavigateToActiveJob(booking.id) },
+                                onDirections = {
+                                    val fullAddress = booking.homeAddress
+                                        .ifBlank { booking.neighborhood }
+                                        .ifBlank { booking.customerFirstName }
+                                    val streetAddress = streetAddressOnly(fullAddress)
+                                    if (booking.customerLat != 0.0 && booking.customerLng != 0.0) {
+                                        onNavigateToMap(booking.customerLat, booking.customerLng, streetAddress.ifBlank { "Customer" })
+                                    } else {
+                                        onNavigateToMap(0.0, 0.0, streetAddress)
+                                    }
+                                },
+                                onCallCustomer = {
+                                    val phone = booking.customerPhone.trim()
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_DIAL).apply {
+                                            data = Uri.parse("tel:$phone")
+                                        }
+                                    )
+                                },
                             )
                         }
                     }
@@ -247,6 +333,80 @@ private fun CompletedBookingCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveBookingCard(
+    booking: ServiceRequest,
+    onClick: (() -> Unit)? = null,
+    onDirections: () -> Unit,
+    onCallCustomer: () -> Unit,
+) {
+    val meetingDate = resolveMeetingDate(booking)
+    val routeEnabled = isRouteEnabledForMeeting(meetingDate)
+    val routeHint = routeWindowLabel(meetingDate)
+
+    SharedCard(onClick = onClick ?: {}) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SharedAvatar(
+                    name = booking.customerFirstName.ifBlank { booking.customerInitials },
+                    size = 44.dp,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    SharedText(
+                        text = booking.customerFirstName.ifBlank { "Customer" },
+                        variant = SharedTextVariant.BodyStrong,
+                    )
+                    SharedText(
+                        text = booking.serviceType.ifBlank { booking.categoryLabel.ifBlank { "Service" } },
+                        variant = SharedTextVariant.Body,
+                    )
+                    SharedText(
+                        text    = "${booking.date} · ${booking.time}",
+                        variant = SharedTextVariant.Caption,
+                        color   = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SharedButton(
+                    text = if (routeEnabled) "Directions" else "Directions locked",
+                    onClick = onDirections,
+                    enabled = routeEnabled,
+                    modifier = Modifier.weight(1f),
+                    variant = SharedButtonVariant.Outline,
+                    leadingIcon = Icons.Filled.LocationOn,
+                )
+                SharedButton(
+                    text = "Call Customer",
+                    onClick = onCallCustomer,
+                    modifier = Modifier.weight(1f),
+                    variant = SharedButtonVariant.Secondary,
+                    leadingIcon = Icons.Filled.Phone,
+                )
+            }
+
+            if (!routeEnabled && routeHint.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                SharedText(
+                    text = routeHint,
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

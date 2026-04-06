@@ -38,7 +38,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -107,7 +106,6 @@ fun ServiceListScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var sortMode by rememberSaveable { mutableStateOf(ServiceSortMode.Relevance) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    val favorites = remember { mutableStateMapOf<String, Boolean>() }
 
     val headerTitle = categoryLabel.ifBlank { "Services" }
     val context = LocalContext.current
@@ -296,7 +294,7 @@ fun ServiceListScreen(
                             val priceLabel = "$${service.hourlyRate.toInt()}"
                             val ratingLabel = if (service.providerAvgRating > 0 && service.providerTotalReviews > 0)
                                 "%.1f".format(service.providerAvgRating) else null
-                            val isFavorite = favorites[service.serviceId] == true
+                            val isFavorite = service.serviceId in s.favoriteServiceIds
 
                             SharedCard(
                                 modifier = Modifier.fillMaxWidth(),
@@ -397,7 +395,7 @@ fun ServiceListScreen(
 
                                             IconButton(
                                                 onClick = {
-                                                    favorites[service.serviceId] = !isFavorite
+                                                    viewModel.toggleFavorite(service)
                                                 },
                                                 modifier = Modifier.size(28.dp),
                                             ) {

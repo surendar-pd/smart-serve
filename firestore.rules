@@ -11,6 +11,26 @@ service cloud.firestore {
       return /databases/$(database)/documents/customer_profiles/$(uid);
     }
 
+    function isCustomerParticipant(data) {
+      return request.auth != null
+        && (
+          data.customer == customerProfileRef(request.auth.uid)
+          || data.customerId == request.auth.uid
+          || data.customerUid == request.auth.uid
+          || data.customer == request.auth.uid
+        );
+    }
+
+    function isProviderParticipant(data) {
+      return request.auth != null
+        && (
+          data.provider == providerProfileRef(request.auth.uid)
+          || data.providerId == request.auth.uid
+          || data.providerUid == request.auth.uid
+          || data.provider == request.auth.uid
+        );
+    }
+
     // Services: keep rules simple for this project.
     function isServiceOwner() {
       return request.auth != null
@@ -39,37 +59,37 @@ service cloud.firestore {
       match /cart_items/{itemId} {
         allow read, write: if request.auth != null && request.auth.uid == customerId;
       }
+
+      match /favorite_services/{favoriteId} {
+        allow read, write: if request.auth != null && request.auth.uid == customerId;
+      }
     }
 
     match /bookings/{bookingId} {
-      allow read: if request.auth != null
-        && (resource.data.customer == customerProfileRef(request.auth.uid)
-            || resource.data.provider == providerProfileRef(request.auth.uid));
+      allow read: if isCustomerParticipant(resource.data) || isProviderParticipant(resource.data);
 
       allow create: if request.auth != null
         && request.resource.data.customer == customerProfileRef(request.auth.uid);
 
-      allow update: if request.auth != null
-        && (resource.data.customer == customerProfileRef(request.auth.uid)
-            || resource.data.provider == providerProfileRef(request.auth.uid));
+      allow update: if isCustomerParticipant(resource.data) || isProviderParticipant(resource.data);
 
       allow delete: if request.auth != null
-        && resource.data.customer == customerProfileRef(request.auth.uid)
+        && isCustomerParticipant(resource.data)
         && resource.data.status == "pending"
         && request.time < (resource.data.scheduledAt - duration.value(2, 'h'));
 
       match /messages/{messageId} {
         allow read: if request.auth != null
-          && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customer
-              == customerProfileRef(request.auth.uid)
-              || get(/databases/$(database)/documents/bookings/$(bookingId)).data.provider
-              == providerProfileRef(request.auth.uid));
+          && (
+            isCustomerParticipant(get(/databases/$(database)/documents/bookings/$(bookingId)).data)
+            || isProviderParticipant(get(/databases/$(database)/documents/bookings/$(bookingId)).data)
+          );
 
         allow create: if request.auth != null
-          && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customer
-              == customerProfileRef(request.auth.uid)
-              || get(/databases/$(database)/documents/bookings/$(bookingId)).data.provider
-              == providerProfileRef(request.auth.uid))
+          && (
+            isCustomerParticipant(get(/databases/$(database)/documents/bookings/$(bookingId)).data)
+            || isProviderParticipant(get(/databases/$(database)/documents/bookings/$(bookingId)).data)
+          )
           && (
             get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == "pending"
             || get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == "active"
@@ -118,10 +138,26 @@ service cloud.firestore {
           && request.resource.data.rating is number
           && request.resource.data.rating >= 1
           && request.resource.data.rating <= 5
-          && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customer
+          && (
+            get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customer
               == customerProfileRef(request.auth.uid)
-          && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.provider
-              == providerProfileRef(providerId);
+            || get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customerId
+              == request.auth.uid
+            || get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customerUid
+              == request.auth.uid
+            || get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customer
+              == request.auth.uid
+          )
+          && (
+            get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.provider
+              == providerProfileRef(providerId)
+            || get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.providerId
+              == providerId
+            || get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.providerUid
+              == providerId
+            || get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.provider
+              == providerId
+          );
 
         allow delete: if false;
       }

@@ -52,9 +52,33 @@ class CartViewModel @Inject constructor(
         }
     }
 
+    fun replaceInCart(original: CartItem, updated: CartItem, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            val id = original.lineDocumentId
+            if (id.isNullOrBlank()) {
+                _errorMessage.value = "Could not edit this cart item"
+                return@launch
+            }
+
+            repo.updateCartLine(
+                lineDocumentId = id,
+                item = updated.copy(lineDocumentId = id),
+            ).onSuccess {
+                onSuccess()
+            }.onFailure { e ->
+                _errorMessage.value = e.localizedMessage ?: "Could not update cart item"
+            }
+        }
+    }
+
     fun confirm(items: List<CartItem>, onSuccess: () -> Unit) {
         viewModelScope.launch {
+            if (items.isEmpty()) {
+                _errorMessage.value = "Your cart is empty"
+                return@launch
+            }
             _isConfirming.value = true
+            _errorMessage.value = null
             repo.confirmBookings(items)
                 .onSuccess {
                     repo.clearCustomerCart()

@@ -55,6 +55,10 @@ fun AppScreen(
     var searchProviderName   by remember { mutableStateOf("") }
     var searchSelectedService by remember { mutableStateOf<CustomerServiceListing?>(null) }
 
+    // ── Cart edit flow ───────────────────────────────────────────────────────
+    var cartEditingItem by remember { mutableStateOf<CartItem?>(null) }
+    var cartEditingService by remember { mutableStateOf<CustomerServiceListing?>(null) }
+
     // ── Bookings tab navigation stack ────────────────────────────────────────
     var selectedBooking by remember { mutableStateOf<CustomerBooking?>(null) }
     var chatBookingId by remember { mutableStateOf<String?>(null) }
@@ -89,9 +93,25 @@ fun AppScreen(
         currentTabIndex = selectedTabIndex,
         tabs = tabs,
         onTabSelected = { index ->
+            if (index == selectedTabIndex) {
+                when (index) {
+                    0 -> clearHomeStack()
+                    1 -> clearSearchStack()
+                    2 -> {
+                        cartEditingItem = null
+                        cartEditingService = null
+                    }
+                }
+                return@AppLayout
+            }
+
             selectedTabIndex = index
             if (index != 0) clearHomeStack()
             if (index != 1) clearSearchStack()
+            if (index != 2) {
+                cartEditingItem = null
+                cartEditingService = null
+            }
         },
         content = { innerPadding ->
             when (selectedTabIndex) {
@@ -209,13 +229,50 @@ fun AppScreen(
                 }
 
                 // ── Cart ─────────────────────────────────────────────────────
-                2 -> CartScreen(
-                    modifier     = Modifier.fillMaxSize().padding(innerPadding),
-                    cartItems    = cartItems,
-                    onRemoveItem = cartViewModel::removeFromCart,
-                    onConfirm    = { selectedTabIndex = 3 },
-                    viewModel    = cartViewModel,
-                )
+                2 -> if (cartEditingService != null && cartEditingItem != null) {
+                    BookingScreen(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        service = cartEditingService!!,
+                        cartItems = cartItems,
+                        categoryId = cartEditingItem!!.categoryId,
+                        prefillItem = cartEditingItem,
+                        onBack = {
+                            cartEditingItem = null
+                            cartEditingService = null
+                        },
+                        onAddToCart = { updated ->
+                            val original = cartEditingItem
+                            if (original != null) {
+                                cartViewModel.replaceInCart(original, updated) {
+                                    cartEditingItem = null
+                                    cartEditingService = null
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    CartScreen(
+                        modifier     = Modifier.fillMaxSize().padding(innerPadding),
+                        cartItems    = cartItems,
+                        onRemoveItem = cartViewModel::removeFromCart,
+                        onEditItem = { item ->
+                            cartEditingItem = item
+                            cartEditingService = CustomerServiceListing(
+                                serviceId = item.serviceId,
+                                title = item.serviceName,
+                                description = "",
+                                hourlyRate = item.hourlyRate,
+                                providerUid = item.providerUid,
+                                providerName = item.providerName,
+                                availabilityDays = emptyList(),
+                                availabilityStart = "09:00",
+                                availabilityEnd = "18:00",
+                            )
+                        },
+                        onConfirm    = { selectedTabIndex = 3 },
+                        viewModel    = cartViewModel,
+                    )
+                }
 
                 // ── Bookings ─────────────────────────────────────────────────
                 3 -> when {
