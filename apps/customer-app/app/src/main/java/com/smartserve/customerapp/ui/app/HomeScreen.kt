@@ -279,10 +279,11 @@ private fun ScoredCategoryCard(
             SharedBadge(
                 text = badgeLabel(scored.badge),
                 variant = badgeVariant(scored.badge),
-                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp),
+                textStyle = MaterialTheme.typography.labelSmall,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(4.dp)
+                    .padding(3.dp)
                     .wrapContentSize(),
             )
         }
@@ -359,10 +360,11 @@ private fun SmartPickCard(
             SharedBadge(
                 text = "Booked before",
                 variant = SharedBadgeVariant.Success,
-                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp),
+                textStyle = MaterialTheme.typography.labelSmall,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(4.dp)
+                    .padding(3.dp)
                     .wrapContentSize(),
             )
         }

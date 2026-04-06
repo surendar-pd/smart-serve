@@ -44,8 +44,8 @@ private val featureSections = listOf(
             FeatureItem(
                 title = "AI-Powered Recommendations",
                 description = "Personalized service suggestions based on your past bookings and preferences using machine learning.",
-                badge = "Planned",
-                badgeVariant = SharedBadgeVariant.Info,
+                badge = "Not in scope for project",
+                badgeVariant = SharedBadgeVariant.Neutral,
             ),
             FeatureItem(
                 title = "Smart Scheduling Assistant",
@@ -67,14 +67,14 @@ private val featureSections = listOf(
             FeatureItem(
                 title = "In-App Payments",
                 description = "Securely pay for services directly through the app using cards or digital wallets.",
-                badge = "Planned",
-                badgeVariant = SharedBadgeVariant.Success,
+                badge = "Not in scope for project",
+                badgeVariant = SharedBadgeVariant.Neutral,
             ),
             FeatureItem(
                 title = "Provider Verification Badges",
                 description = "Background-checked and identity-verified provider badges for added trust.",
-                badge = "Planned",
-                badgeVariant = SharedBadgeVariant.Success,
+                badge = "Not in scope for project",
+                badgeVariant = SharedBadgeVariant.Neutral,
             ),
             FeatureItem(
                 title = "Escrow-Based Payments",
@@ -90,14 +90,14 @@ private val featureSections = listOf(
             FeatureItem(
                 title = "Real-Time Provider Tracking",
                 description = "Track your provider's location on a live map as they make their way to you.",
-                badge = "Planned",
-                badgeVariant = SharedBadgeVariant.Warning,
+                badge = "Not in scope for project",
+                badgeVariant = SharedBadgeVariant.Neutral,
             ),
             FeatureItem(
                 title = "Recurring Bookings",
                 description = "Set up weekly or monthly repeat bookings for regular services like cleaning or tutoring.",
-                badge = "Planned",
-                badgeVariant = SharedBadgeVariant.Warning,
+                badge = "Not in scope for project",
+                badgeVariant = SharedBadgeVariant.Neutral,
             ),
             FeatureItem(
                 title = "Multi-Provider Bundling",
@@ -113,8 +113,8 @@ private val featureSections = listOf(
             FeatureItem(
                 title = "Provider Analytics Dashboard",
                 description = "Providers can see earnings, booking trends, and customer satisfaction scores over time.",
-                badge = "Planned",
-                badgeVariant = SharedBadgeVariant.Success,
+                badge = "Not in scope for project",
+                badgeVariant = SharedBadgeVariant.Neutral,
             ),
             FeatureItem(
                 title = "Team & Sub-Provider Support",
