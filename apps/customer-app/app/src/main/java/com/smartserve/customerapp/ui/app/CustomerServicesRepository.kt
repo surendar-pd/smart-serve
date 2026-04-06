@@ -53,11 +53,11 @@ class CustomerServicesRepository @Inject constructor(
                 ratings.average() to ratings.size
             } else {
                 val doc = profiles.document(providerUid).get().await()
-                val avg = doc.getDouble("avgRating") ?: doc.getLong("avgRating")?.toDouble() ?: 5.0
+                val avg = doc.getDouble("avgRating") ?: doc.getLong("avgRating")?.toDouble() ?: 0.0
                 val total = doc.getLong("totalReviews")?.toInt() ?: 0
                 avg to total
             }
-        }.getOrDefault(5.0 to 0)
+        }.getOrDefault(0.0 to 0)
     }
 
     /**
