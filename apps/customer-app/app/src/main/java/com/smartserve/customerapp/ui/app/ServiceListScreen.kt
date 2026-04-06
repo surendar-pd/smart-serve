@@ -17,15 +17,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Intent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -107,6 +110,7 @@ fun ServiceListScreen(
     val favorites = remember { mutableStateMapOf<String, Boolean>() }
 
     val headerTitle = categoryLabel.ifBlank { "Services" }
+    val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -132,7 +136,18 @@ fun ServiceListScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.size(48.dp))
+            IconButton(
+                onClick = {
+                    val services = (state as? ServiceListUiState.Success)?.services ?: emptyList()
+                    shareProvider(context, providerName, services)
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Share,
+                    contentDescription = "Share provider",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         SharedText(
@@ -412,4 +427,47 @@ fun ServiceListScreen(
             }
         }
     }
+}
+
+private fun shareProvider(
+    context: android.content.Context,
+    providerName: String,
+    services: List<CustomerServiceListing>,
+) {
+    val name = providerName.ifBlank { "a provider" }
+
+    val serviceLine = services
+        .map { it.title.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .take(3)
+        .joinToString(", ")
+
+    val ratingLine = services.firstOrNull()?.let { s ->
+        if (s.providerAvgRating > 0 && s.providerTotalReviews > 0)
+            "⭐ ${"%.1f".format(s.providerAvgRating)} (${s.providerTotalReviews} reviews)"
+        else null
+    }
+
+    val priceLine = services.minOfOrNull { it.hourlyRate }
+        ?.takeIf { it > 0 }
+        ?.let { "💰 From $${it.toInt()}/hr" }
+
+    val text = buildString {
+        appendLine("Check out $name on SmartServe! 🔧")
+        appendLine()
+        if (serviceLine.isNotBlank()) appendLine("Services: $serviceLine")
+        if (ratingLine != null) appendLine(ratingLine)
+        if (priceLine != null) appendLine(priceLine)
+        appendLine("📍 Serving the Ottawa area")
+        appendLine()
+        append("Book them on the SmartServe app.")
+    }
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "$name on SmartServe")
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share via"))
 }
