@@ -355,7 +355,7 @@ private fun SmartPickCard(
             }
         }
 
-        // "Booked before" badge for returning providers
+        // "Booked before" badge — bottom-end so it never overlaps the provider name
         if (pick.bookedBefore) {
             SharedBadge(
                 text = "Booked before",
@@ -363,7 +363,7 @@ private fun SmartPickCard(
                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp),
                 textStyle = MaterialTheme.typography.labelSmall,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.BottomEnd)
                     .padding(3.dp)
                     .wrapContentSize(),
             )
