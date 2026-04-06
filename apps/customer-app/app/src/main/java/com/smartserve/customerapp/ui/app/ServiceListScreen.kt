@@ -279,7 +279,8 @@ fun ServiceListScreen(
                     ) {
                         items(shown, key = { it.serviceId }) { service ->
                             val priceLabel = "$${service.hourlyRate.toInt()}"
-                            val ratingLabel = "%.1f".format(service.providerAvgRating)
+                            val ratingLabel = if (service.providerAvgRating > 0 && service.providerTotalReviews > 0)
+                                "%.1f".format(service.providerAvgRating) else null
                             val isFavorite = favorites[service.serviceId] == true
 
                             SharedCard(
@@ -354,20 +355,24 @@ fun ServiceListScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Star,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(16.dp),
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
+                                            if (ratingLabel != null) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Star,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    SharedText(
+                                                        text = "$ratingLabel (${service.providerTotalReviews})",
+                                                        variant = SharedTextVariant.Caption,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+                                            } else {
                                                 SharedText(
-                                                    text = if (service.providerTotalReviews > 0) {
-                                                        "$ratingLabel (${service.providerTotalReviews})"
-                                                    } else {
-                                                        ratingLabel
-                                                    },
+                                                    text = "New",
                                                     variant = SharedTextVariant.Caption,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )

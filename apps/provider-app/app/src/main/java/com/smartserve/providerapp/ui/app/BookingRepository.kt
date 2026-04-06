@@ -36,7 +36,7 @@ class BookingRepository @Inject constructor(
                     ?: doc.getLong("providerRating")?.toDouble()
             }.filter { it > 0.0 }
 
-            val avgRating = if (ratings.isNotEmpty()) ratings.average() else 5.0
+            val avgRating = if (ratings.isNotEmpty()) ratings.average() else 0.0
             val totalReviews = ratings.size
 
             providerRef.set(

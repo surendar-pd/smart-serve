@@ -233,10 +233,10 @@ fun CategoryListScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(shown, key = { it.uid }) { provider ->
-                            val rating = if (provider.avgRating > 0) {
+                            val rating = if (provider.avgRating > 0 && provider.totalReviews > 0) {
                                 "%.1f".format(provider.avgRating)
                             } else {
-                                "5.0"
+                                null
                             }
                             val daysLabel = if (provider.categoryAvailabilityDays.isNotEmpty()) {
                                 val days = provider.categoryAvailabilityDays
@@ -310,16 +310,24 @@ fun CategoryListScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Star,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(16.dp),
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
+                                            if (rating != null) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Star,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    SharedText(
+                                                        text = "$rating (${provider.totalReviews})",
+                                                        variant = SharedTextVariant.Caption,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+                                            } else {
                                                 SharedText(
-                                                    text = if (provider.totalReviews > 0) "$rating (${provider.totalReviews})" else rating,
+                                                    text = "New",
                                                     variant = SharedTextVariant.Caption,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )

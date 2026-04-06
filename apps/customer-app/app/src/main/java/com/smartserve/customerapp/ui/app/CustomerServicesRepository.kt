@@ -53,11 +53,11 @@ class CustomerServicesRepository @Inject constructor(
                 ratings.average() to ratings.size
             } else {
                 val doc = profiles.document(providerUid).get().await()
-                val avg = doc.getDouble("avgRating") ?: doc.getLong("avgRating")?.toDouble() ?: 5.0
+                val avg = doc.getDouble("avgRating") ?: doc.getLong("avgRating")?.toDouble() ?: 0.0
                 val total = doc.getLong("totalReviews")?.toInt() ?: 0
                 avg to total
             }
-        }.getOrDefault(5.0 to 0)
+        }.getOrDefault(0.0 to 0)
     }
 
     /**
@@ -773,6 +773,21 @@ class CustomerServicesRepository @Inject constructor(
             SetOptions.merge(),
         )
         batch.commit().await()
+
+        // Recompute avgRating + totalReviews on provider_profiles/{providerId}
+        val ratingsSnap = profiles.document(providerId).collection("ratings").get().await()
+        val allRatings = ratingsSnap.documents
+            .mapNotNull { it.getDouble("rating") ?: it.getLong("rating")?.toDouble() }
+            .filter { it in 1.0..5.0 }
+        if (allRatings.isNotEmpty()) {
+            profiles.document(providerId).update(
+                mapOf(
+                    "avgRating" to allRatings.average(),
+                    "totalReviews" to allRatings.size,
+                )
+            ).await()
+            Log.d(TAG, "rateProvider synced avgRating=${allRatings.average()} totalReviews=${allRatings.size} for provider=$providerId")
+        }
         Unit
     }
 }

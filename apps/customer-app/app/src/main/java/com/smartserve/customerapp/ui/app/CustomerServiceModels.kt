@@ -25,7 +25,7 @@ data class CustomerServiceListing(
     val availabilityDays: List<String>,
     val availabilityStart: String,
     val availabilityEnd: String,
-    val providerAvgRating: Double = 5.0,
+    val providerAvgRating: Double = 0.0,
     val providerTotalReviews: Int = 0,
     /** Hosted image URLs from the provider listing (e.g. ImageKit); empty if none. */
     val photoUrls: List<String> = emptyList(),
