@@ -747,6 +747,17 @@ class CustomerServicesRepository @Inject constructor(
         Unit
     }
 
+    /** Returns all service categories, sorted by label. */
+    suspend fun getCategories(): List<com.smartserve.sharedauth.ServiceCategoryOption> {
+        return runCatching {
+            categories.get().await().documents.mapNotNull { doc ->
+                val label = doc.getString("label")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                com.smartserve.sharedauth.ServiceCategoryOption(id = doc.id, label = label)
+            }.sortedBy { it.label }
+        }.getOrDefault(emptyList())
+    }
+
     suspend fun rateProvider(bookingId: String, rating: Float): Result<Unit> = runCatching {
         val uid = auth.currentUser?.uid ?: error("Customer not signed in")
         Log.d(TAG, "rateProvider uid=${uid.take(6)}… id=$bookingId rating=$rating")
