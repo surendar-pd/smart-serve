@@ -219,6 +219,7 @@ fun HomeScreen(
                 }
             }
 
+            // ── Favourites ────────────────────────────────────────────────────
             Spacer(modifier = Modifier.height(28.dp))
 
             SharedText(text = "Your favorites", variant = SharedTextVariant.Title)
@@ -277,6 +278,8 @@ fun HomeScreen(
     }
 }
 
+// ── Favourite service card ─────────────────────────────────────────────────────
+
 @Composable
 private fun FavoriteServiceCard(
     service: CustomerServiceListing,
@@ -307,7 +310,6 @@ private fun FavoriteServiceCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-
                 Text(
                     text = service.title,
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -316,7 +318,6 @@ private fun FavoriteServiceCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-
                 Text(
                     text = service.providerName.ifBlank { "Provider" },
                     style = MaterialTheme.typography.bodySmall.copy(
@@ -325,7 +326,6 @@ private fun FavoriteServiceCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-
                 SharedText(
                     text = "$${service.hourlyRate.toInt()}/hr",
                     variant = SharedTextVariant.Caption,

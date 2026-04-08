@@ -274,6 +274,7 @@ fun ProfileScreen(
                 onClick = onOpenComingSoon,
             )
 
+
             Spacer(modifier = Modifier.height(20.dp))
 
             SharedText(
@@ -298,6 +299,7 @@ fun ProfileScreen(
                     )
                 }
             }
+
 
             Spacer(modifier = Modifier.height(28.dp))
 
