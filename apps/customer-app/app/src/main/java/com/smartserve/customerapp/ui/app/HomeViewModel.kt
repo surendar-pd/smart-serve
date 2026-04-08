@@ -6,6 +6,7 @@ import com.smartserve.sharedauth.ServiceCategoryOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
@@ -102,6 +103,7 @@ data class SmartPickProvider(
 data class HomeUiState(
     val scoredCategories: List<ScoredCategory> = emptyList(),
     val smartPicks: List<SmartPickProvider> = emptyList(),
+    val favoriteServices: List<CustomerServiceListing> = emptyList(),
     val timeContext: TimeContext = TimeContext.MORNING,
     val seasonContext: SeasonContext = SeasonContext.SUMMER,
     val activeSignals: ActiveSignals? = null,
@@ -121,6 +123,16 @@ class HomeViewModel @Inject constructor(
 
     init {
         load()
+        observeFavorites()
+    }
+
+    private fun observeFavorites() {
+        viewModelScope.launch {
+            servicesRepository.observeFavoriteServiceIds().collect {
+                val favorites = servicesRepository.getFavoriteServices(limit = 10)
+                _state.value = _state.value.copy(favoriteServices = favorites)
+            }
+        }
     }
 
     fun load() {
@@ -134,6 +146,7 @@ class HomeViewModel @Inject constructor(
             val tapCounts         = personalizationRepository.getCategoryTapCounts()
             val bookedProviderIds = personalizationRepository.getPreviouslyBookedProviderIds()
             val topProviders      = servicesRepository.getTopProviders(limit = 20)
+            val favorites         = servicesRepository.getFavoriteServices(limit = 10)
 
             val totalPersonalTaps = tapCounts.values.sum()
 
@@ -199,6 +212,7 @@ class HomeViewModel @Inject constructor(
             _state.value = HomeUiState(
                 scoredCategories = finalScored,
                 smartPicks       = smartPicks,
+                favoriteServices = favorites,
                 timeContext      = timeContext,
                 seasonContext    = seasonContext,
                 activeSignals    = activeSignals,

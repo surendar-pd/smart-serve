@@ -38,11 +38,13 @@ import com.smartserve.sharedui.SharedTextVariant
 fun CartScreen(
     cartItems: List<CartItem>,
     onRemoveItem: (CartItem) -> Unit,
+    onEditItem: (CartItem) -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CartViewModel = hiltViewModel(LocalContext.current as ComponentActivity),
 ) {
     val isConfirming by viewModel.isConfirming.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
         CustomerTabHeader(
@@ -59,6 +61,21 @@ fun CartScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
+            errorMessage?.let { msg ->
+                SharedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    contentPadding = PaddingValues(12.dp),
+                ) {
+                    SharedText(
+                        text = msg,
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -104,6 +121,14 @@ fun CartScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                SharedButton(
+                                    text = "Edit",
+                                    onClick = { onEditItem(item) },
+                                    variant = com.smartserve.sharedui.SharedButtonVariant.Outline,
+                                )
                             }
                             SharedIconButton(
                                 onClick = { onRemoveItem(item) },

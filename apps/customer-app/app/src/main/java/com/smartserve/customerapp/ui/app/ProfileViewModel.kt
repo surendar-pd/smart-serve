@@ -36,6 +36,7 @@ data class ProfileUiState(
     val addressValidState: AddressValidState = AddressValidState.Idle,
     val addressGeoResult: GeoResult? = null,
     val addressSuggestions: List<GeoResult> = emptyList(),
+    val favoriteServices: List<CustomerServiceListing> = emptyList(),
 )
 
 @HiltViewModel
@@ -58,6 +59,7 @@ class ProfileViewModel @Inject constructor(
         try {
             val user = auth.currentUser ?: return@launch
             val doc = firestore.collection(AuthCollections.CUSTOMER_PROFILES).document(user.uid).get().await()
+            val favorites = repo.getFavoriteServices(limit = 30)
             _state.update {
                 it.copy(
                     isLoading = false,
@@ -69,6 +71,7 @@ class ProfileViewModel @Inject constructor(
                     pushNotifications = doc.getBoolean("pushNotifications") ?: true,
                     addressValidState = AddressValidState.Idle,
                     addressGeoResult = null,
+                    favoriteServices = favorites,
                 )
             }
         } catch (e: Exception) {

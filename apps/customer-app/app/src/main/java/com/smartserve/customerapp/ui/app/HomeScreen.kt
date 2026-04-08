@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Person
@@ -217,9 +218,121 @@ fun HomeScreen(
                     }
                 }
             }
+
+            // ── Favourites ────────────────────────────────────────────────────
+            Spacer(modifier = Modifier.height(28.dp))
+
+            SharedText(text = "Your favorites", variant = SharedTextVariant.Title)
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            SharedText(
+                text = "Your saved services at a glance",
+                variant = SharedTextVariant.Caption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (state.favoriteServices.isEmpty()) {
+                SharedCard(
+                    onClick = onNavigateToSearch,
+                    contentPadding = PaddingValues(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "No favorites yet",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            ),
+                        )
+                        SharedText(
+                            text = "Tap the heart on any service to save it here.",
+                            variant = SharedTextVariant.Caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(end = 8.dp),
+                ) {
+                    items(state.favoriteServices, key = { it.serviceId }) { favorite ->
+                        FavoriteServiceCard(
+                            service = favorite,
+                            onClick = {
+                                onNavigateToProvider(
+                                    favorite.providerUid,
+                                    favorite.providerName,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+// ── Favourite service card ─────────────────────────────────────────────────────
+
+@Composable
+private fun FavoriteServiceCard(
+    service: CustomerServiceListing,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.width(190.dp)) {
+        SharedCard(
+            onClick = onClick,
+            contentPadding = PaddingValues(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    SharedText(
+                        text = "Saved",
+                        variant = SharedTextVariant.Caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = service.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = service.providerName.ifBlank { "Provider" },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                SharedText(
+                    text = "$${service.hourlyRate.toInt()}/hr",
+                    variant = SharedTextVariant.Caption,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
 

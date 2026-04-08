@@ -88,6 +88,7 @@ object AuthCollections {
      * as **DocumentReference** fields, plus denormalized labels and scheduling fields.
      */
     const val CUSTOMER_CART_ITEMS = "cart_items"
+    const val CUSTOMER_FAVORITE_SERVICES = "favorite_services"
 }
 
 /**
