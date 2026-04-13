@@ -64,6 +64,7 @@ Thumbs.db
 **/google-services.json
 
 # MCP / tooling
+.agents/
 .cursor/
 .codex/
 .claude/
